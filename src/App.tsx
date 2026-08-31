@@ -266,10 +266,82 @@ export const App: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
+  // Automatic palette re-extraction when clustering algorithm or parameters change
+  const prevAlgoParamsRef = useRef({
+    colorCount: state.processing.colorCount,
+    clusteringAlgorithm: state.processing.clusteringAlgorithm,
+    accentSensitivity: state.processing.accentSensitivity,
+    lumaRampGamma: state.processing.lumaRampGamma,
+    sourceId: state.sourceImage?.id,
+  });
+
+  useEffect(() => {
+    const prev = prevAlgoParamsRef.current;
+    const current = {
+      colorCount: state.processing.colorCount,
+      clusteringAlgorithm: state.processing.clusteringAlgorithm,
+      accentSensitivity: state.processing.accentSensitivity,
+      lumaRampGamma: state.processing.lumaRampGamma,
+      sourceId: state.sourceImage?.id,
+    };
+
+    const hasChanged =
+      prev.colorCount !== current.colorCount ||
+      prev.clusteringAlgorithm !== current.clusteringAlgorithm ||
+      prev.accentSensitivity !== current.accentSensitivity ||
+      prev.lumaRampGamma !== current.lumaRampGamma ||
+      prev.sourceId !== current.sourceId;
+
+    if (hasChanged && state.sourceImage?.imageData) {
+      prevAlgoParamsRef.current = current;
+      const extracted = extractDominantPalette(
+        state.sourceImage.imageData,
+        state.processing.colorCount,
+        {
+          algorithm: state.processing.clusteringAlgorithm,
+          accentSensitivity: state.processing.accentSensitivity,
+          lumaRampGamma: state.processing.lumaRampGamma,
+        }
+      );
+
+      const newLayers: ChromaLayerState[] = extracted.map((swatch, idx) => ({
+        id: `layer-${idx + 1}`,
+        order: idx,
+        swatch,
+        isSolidBacking: idx === 0,
+        underlapBleedMm: state.processing.underlapBleedMm,
+        manualEdits: { bridges: [], fills: [] },
+      }));
+
+      updateState(p => ({
+        ...p,
+        palette: extracted,
+        layers: newLayers,
+        selectedLayerId: newLayers[0]?.id || null,
+      }));
+    }
+  }, [
+    state.processing.colorCount,
+    state.processing.clusteringAlgorithm,
+    state.processing.accentSensitivity,
+    state.processing.lumaRampGamma,
+    state.sourceImage,
+    state.processing.underlapBleedMm,
+    updateState,
+  ]);
+
   // Re-extract palette from current source image
   const handleReExtractPalette = () => {
     if (!state.sourceImage?.imageData) return;
-    const extracted = extractDominantPalette(state.sourceImage.imageData, state.processing.colorCount);
+    const extracted = extractDominantPalette(
+      state.sourceImage.imageData,
+      state.processing.colorCount,
+      {
+        algorithm: state.processing.clusteringAlgorithm,
+        accentSensitivity: state.processing.accentSensitivity,
+        lumaRampGamma: state.processing.lumaRampGamma,
+      }
+    );
 
     const newLayers: ChromaLayerState[] = extracted.map((swatch, idx) => ({
       id: `layer-${idx + 1}`,
@@ -325,16 +397,30 @@ export const App: React.FC = () => {
   // -------------------------------------------------------------
   // Pipeline Step 1: Resample Working Image to Canvas Dimensions
   // -------------------------------------------------------------
+  // -------------------------------------------------------------
+  // Pipeline Step 1: Resample Working Image to Canvas Dimensions
+  // -------------------------------------------------------------
   const resampled = useMemo(() => {
     if (!state.sourceImage) return null;
-    const printable = getPrintableArea(state.canvas);
+    const { widthPx, heightPx, printableWidthPx, printableHeightPx } = getPrintableArea(state.canvas);
+    const maxDim = 800;
+    const canvasAspect = widthPx / Math.max(1, heightPx);
+    let targetW = maxDim;
+    let targetH = Math.round(maxDim / canvasAspect);
+    if (targetH > maxDim) {
+      targetH = maxDim;
+      targetW = Math.round(maxDim * canvasAspect);
+    }
+
     return resampleWorkingImage(
       state.sourceImage,
       state.workingImage,
-      printable.printableWidthPx,
-      printable.printableHeightPx,
-      printable.printableWidthPx,
-      printable.printableHeightPx
+      targetW,
+      targetH,
+      widthPx,
+      heightPx,
+      printableWidthPx,
+      printableHeightPx
     );
   }, [state.sourceImage, state.workingImage, state.canvas]);
 
@@ -364,10 +450,10 @@ export const App: React.FC = () => {
   const throttledLayers = useThrottledValue(state.layers, 220);
   const vectorCacheRef = useRef<Map<string, VectorLayerResult>>(new Map());
 
-  // Invalidate vector cache when palette or source image changes
+  // Invalidate vector cache when palette, source image, or aesthetic filter changes
   useEffect(() => {
     vectorCacheRef.current.clear();
-  }, [state.palette, state.sourceImage]);
+  }, [state.palette, state.sourceImage, state.aestheticFilter]);
 
   // -------------------------------------------------------------
   // Precompute OKLCH Float32Array Cache (Runs once on image load/filter change)
@@ -395,12 +481,9 @@ export const App: React.FC = () => {
   }, [classification]);
 
   // -------------------------------------------------------------
-  // Pipeline Step 3b: Morphological Underlap Dilation (Skip if in Source tab)
+  // Pipeline Step 3b: Morphological Underlap Dilation & Margin Union
   // -------------------------------------------------------------
   const { finalMasks, underlapOverlays } = useMemo(() => {
-    if (activeTab === 'source') {
-      return { finalMasks: [], underlapOverlays: [] };
-    }
     if (classification.layerMasks.length === 0 || throttledLayers.length === 0) {
       return { finalMasks: [], underlapOverlays: [] };
     }
@@ -411,38 +494,31 @@ export const App: React.FC = () => {
       throttledLayers,
       throttledProcessing.assemblyMode,
       printable.pxPerMm,
-      throttledProcessing.underlapBleedMm
+      throttledProcessing.underlapBleedMm,
+      precomputedOklch?.alpha
     );
-  }, [activeTab, classification.layerMasks, throttledLayers, throttledProcessing.assemblyMode, throttledProcessing.underlapBleedMm, state.canvas]);
+  }, [classification.layerMasks, throttledLayers, throttledProcessing.assemblyMode, throttledProcessing.underlapBleedMm, precomputedOklch?.alpha, state.canvas]);
 
   // -------------------------------------------------------------
-  // Pipeline Step 4: Tab-Aware, Selective & Cached Potrace Vector Tracing
+  // Pipeline Step 4: Robust & Cached Potrace Vector Tracing
   // -------------------------------------------------------------
   const vectorResults = useMemo(() => {
     const results = new Map<string, VectorLayerResult>();
-    if (activeTab === 'source' || activeTab === 'quantized') {
-      return results;
-    }
     if (finalMasks.length === 0 || throttledLayers.length === 0) {
       return results;
     }
 
     const printable = getPrintableArea(state.canvas);
-    const activeSelectedId = state.selectedLayerId || (throttledLayers[0] ? throttledLayers[0].id : null);
 
-    // If in Layer View tab, prioritize computing the active selected layer
-    const targetLayers = activeTab === 'layer'
-      ? throttledLayers.filter(l => l.id === activeSelectedId)
-      : throttledLayers;
-
-    targetLayers.forEach((layer) => {
+    throttledLayers.forEach((layer) => {
       const idx = throttledLayers.findIndex(l => l.id === layer.id);
       const rawMask = finalMasks[idx];
       if (!rawMask) return;
 
-      // Cache key for vector path
+      // Cache key for vector path including canvas size, margin, and aesthetic filter
       const editsHash = JSON.stringify(layer.manualEdits || {});
-      const cacheKey = `${layer.id}:${rawMask.width}x${rawMask.height}:${throttledProcessing.minimumFeatureSize}:${throttledProcessing.smoothing}:${throttledProcessing.assemblyMode}:${throttledProcessing.underlapBleedMm}:${throttledProcessing.colorBias}:${throttledProcessing.hueWeight}:${throttledProcessing.lightnessWeight}:${throttledProcessing.chromaWeight}:${throttledProcessing.chromaFloor}:${editsHash}`;
+      const filterHash = JSON.stringify(state.aestheticFilter);
+      const cacheKey = `${layer.id}:${rawMask.width}x${rawMask.height}:${state.canvas.width}x${state.canvas.height}${state.canvas.unit}:${state.canvas.margin}:${throttledProcessing.minimumFeatureSize}:${throttledProcessing.smoothing}:${throttledProcessing.assemblyMode}:${throttledProcessing.underlapBleedMm}:${throttledProcessing.colorBias}:${throttledProcessing.hueWeight}:${throttledProcessing.lightnessWeight}:${throttledProcessing.chromaWeight}:${throttledProcessing.chromaFloor}:${filterHash}:${editsHash}`;
 
       const cached = vectorCacheRef.current.get(cacheKey);
       if (cached) {

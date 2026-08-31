@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChromaProcessingSettings } from '../../engine/types';
+import { ChromaProcessingSettings, ClusteringAlgorithm } from '../../engine/types';
 
 interface ChromaControlsPanelProps {
   settings: ChromaProcessingSettings;
@@ -15,6 +15,8 @@ export const ChromaControlsPanel: React.FC<ChromaControlsPanelProps> = ({
   const [localColorCount, setLocalColorCount] = useState(settings.colorCount);
   const [localColorBias, setLocalColorBias] = useState(settings.colorBias ?? 0.5);
   const [localChromaFloor, setLocalChromaFloor] = useState(settings.chromaFloor);
+  const [localAccentSensitivity, setLocalAccentSensitivity] = useState(settings.accentSensitivity ?? 0.5);
+  const [localLumaGamma, setLocalLumaGamma] = useState(settings.lumaRampGamma ?? 1.0);
 
   const throttleTimerRef = useRef<number | null>(null);
 
@@ -29,6 +31,14 @@ export const ChromaControlsPanel: React.FC<ChromaControlsPanelProps> = ({
   useEffect(() => {
     setLocalChromaFloor(settings.chromaFloor);
   }, [settings.chromaFloor]);
+
+  useEffect(() => {
+    setLocalAccentSensitivity(settings.accentSensitivity ?? 0.5);
+  }, [settings.accentSensitivity]);
+
+  useEffect(() => {
+    setLocalLumaGamma(settings.lumaRampGamma ?? 1.0);
+  }, [settings.lumaRampGamma]);
 
   const dispatchChange = (updater: (prev: ChromaProcessingSettings) => ChromaProcessingSettings, immediate: boolean = false) => {
     if (immediate) {
@@ -55,6 +65,8 @@ export const ChromaControlsPanel: React.FC<ChromaControlsPanelProps> = ({
     if (bias <= 0.65) return 'Slight Luma Bias';
     return 'Tonal Luma (Depth)';
   };
+
+  const currentAlgo = settings.clusteringAlgorithm || 'kmeans_pp';
 
   return (
     <div className="space-y-4 text-xs">
@@ -92,8 +104,99 @@ export const ChromaControlsPanel: React.FC<ChromaControlsPanelProps> = ({
         </div>
       </div>
 
+      {/* Clustering Engine Selector */}
+      <div className="space-y-1.5 pt-2 border-t border-sand-400/10">
+        <div className="flex justify-between items-center text-[11px]">
+          <span className="text-sand-300 font-semibold uppercase font-gorton">Clustering Engine</span>
+        </div>
+        <select
+          value={currentAlgo}
+          onChange={e => {
+            const algo = e.target.value as ClusteringAlgorithm;
+            dispatchChange(s => ({ ...s, clusteringAlgorithm: algo }), true);
+          }}
+          className="w-full bg-moss-950/80 border border-sand-400/25 rounded px-2.5 py-1.5 text-xs text-sand-100 font-medium focus:border-emerald-400 focus:outline-none"
+        >
+          <option value="kmeans_pp">Perceptual (K-Means++)</option>
+          <option value="saliency">Accent Saliency (Focal Details)</option>
+          <option value="luma_ramp">Tonal Luma Ramp (Relief Depth)</option>
+          <option value="median_cut">Graphic Median Cut (Posterized)</option>
+        </select>
+        <p className="text-[10px] text-sand-400/80 leading-relaxed">
+          {currentAlgo === 'kmeans_pp' && 'Balanced statistical color centroids optimized in perceptual OKLab space.'}
+          {currentAlgo === 'saliency' && 'Forces small, vivid accent colors into the palette instead of being swallowed by large backgrounds.'}
+          {currentAlgo === 'luma_ramp' && 'Equalizes lightness stratification across sheets for deep woodcarvings and shadowboxes.'}
+          {currentAlgo === 'median_cut' && 'Partitions color volume into crisp, bold graphic blocks suited for silkscreen styles.'}
+        </p>
+      </div>
+
+      {/* Dynamic Saliency Sub-slider */}
+      {currentAlgo === 'saliency' && (
+        <div className="space-y-1.5 p-2 rounded-lg bg-moss-950/60 border border-sand-400/20">
+          <div className="flex justify-between items-center text-[11px]">
+            <span className="text-sand-300 font-medium">Accent Sensitivity</span>
+            <span className="font-mono text-emerald-400 font-semibold px-2 py-0.5 rounded bg-moss-900 border border-sand-400/20">
+              {(localAccentSensitivity * 100).toFixed(0)}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0.0"
+            max="1.0"
+            step="0.05"
+            value={localAccentSensitivity}
+            onChange={e => {
+              const val = parseFloat(e.target.value);
+              setLocalAccentSensitivity(val);
+              dispatchChange(s => ({ ...s, accentSensitivity: val }));
+            }}
+            onPointerUp={e => {
+              const val = parseFloat((e.target as HTMLInputElement).value);
+              dispatchChange(s => ({ ...s, accentSensitivity: val }), true);
+            }}
+          />
+          <div className="flex justify-between text-[10px] text-sand-400/80 px-0.5">
+            <span>Area Biased</span>
+            <span>Vivid Accent Priority</span>
+          </div>
+        </div>
+      )}
+
+      {/* Dynamic Luma Gamma Sub-slider */}
+      {currentAlgo === 'luma_ramp' && (
+        <div className="space-y-1.5 p-2 rounded-lg bg-moss-950/60 border border-sand-400/20">
+          <div className="flex justify-between items-center text-[11px]">
+            <span className="text-sand-300 font-medium">Dynamic Range Gamma</span>
+            <span className="font-mono text-emerald-400 font-semibold px-2 py-0.5 rounded bg-moss-900 border border-sand-400/20">
+              {localLumaGamma.toFixed(2)}γ
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0.2"
+            max="3.0"
+            step="0.1"
+            value={localLumaGamma}
+            onChange={e => {
+              const val = parseFloat(e.target.value);
+              setLocalLumaGamma(val);
+              dispatchChange(s => ({ ...s, lumaRampGamma: val }));
+            }}
+            onPointerUp={e => {
+              const val = parseFloat((e.target as HTMLInputElement).value);
+              dispatchChange(s => ({ ...s, lumaRampGamma: val }), true);
+            }}
+          />
+          <div className="flex justify-between text-[10px] text-sand-400/80 px-0.5">
+            <span>Highlight Skew</span>
+            <span>1.0 (Linear)</span>
+            <span>Shadow Skew</span>
+          </div>
+        </div>
+      )}
+
       {/* Number of Colors (K) */}
-      <div className="space-y-1.5">
+      <div className="space-y-1.5 pt-2 border-t border-sand-400/10">
         <div className="flex justify-between items-center text-[11px]">
           <span className="text-sand-300 font-medium">Color Sheet Count (K)</span>
           <span className="font-mono text-emerald-400 font-semibold px-2 py-0.5 rounded bg-moss-950/70 border border-sand-400/20">

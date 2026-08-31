@@ -1,16 +1,16 @@
 import React from 'react';
 import { ChromaLayerState, VectorLayerResult } from '../../engine/types';
-import { hexToOklab, oklabToOklch } from '../../engine/chroma/oklab';
-import { ArrowUp, ArrowDown } from 'lucide-react';
+import { Layers, ArrowUp, ArrowDown, Palette, RotateCcw } from 'lucide-react';
+import { hexToOklab, hexToOklch } from '../../engine/chroma/oklab';
 
 interface LayerManagerPanelProps {
   layers: ChromaLayerState[];
   selectedLayerId: string | null;
-  onSelectLayer: (layerId: string) => void;
-  onUpdateLayer: (layerId: string, updater: (prev: ChromaLayerState) => ChromaLayerState) => void;
+  onSelectLayer: (id: string) => void;
+  onUpdateLayer: (id: string, updater: (prev: ChromaLayerState) => ChromaLayerState) => void;
   onReorderLayers: (newLayers: ChromaLayerState[]) => void;
   vectorResults: Map<string, VectorLayerResult>;
-  pixelPercentages: number[];
+  pixelPercentages?: number[];
 }
 
 export const LayerManagerPanel: React.FC<LayerManagerPanelProps> = ({
@@ -20,33 +20,37 @@ export const LayerManagerPanel: React.FC<LayerManagerPanelProps> = ({
   onUpdateLayer,
   onReorderLayers,
   vectorResults,
-  pixelPercentages,
+  pixelPercentages = [],
 }) => {
-  // Sort from Top sheet (highest order) down to Base sheet (order 0)
-  const sortedLayers = [...layers].sort((a, b) => b.order - a.order);
+  // Sort layers from top of physical stack down to base
+  // Top layer = highest order, Base = order 0
+  const visualStack = [...layers].sort((a, b) => b.order - a.order);
 
-  const moveLayer = (layerId: string, direction: 'up' | 'down') => {
-    const currentOrder = layers.find(l => l.id === layerId)?.order;
-    if (currentOrder === undefined) return;
+  const moveLayer = (id: string, direction: 'up' | 'down') => {
+    const sorted = [...layers].sort((a, b) => a.order - b.order);
+    const currentIndex = sorted.findIndex(l => l.id === id);
+    if (currentIndex === -1) return;
 
-    const targetOrder = direction === 'up' ? currentOrder + 1 : currentOrder - 1;
-    if (targetOrder < 0 || targetOrder >= layers.length) return;
+    const targetIndex = direction === 'up' ? currentIndex + 1 : currentIndex - 1;
+    if (targetIndex < 0 || targetIndex >= sorted.length) return;
 
-    const otherLayer = layers.find(l => l.order === targetOrder);
-    if (!otherLayer) return;
+    // Swap order values
+    const newSorted = [...sorted];
+    const temp = newSorted[currentIndex];
+    newSorted[currentIndex] = newSorted[targetIndex];
+    newSorted[targetIndex] = temp;
 
-    const newLayers = layers.map(l => {
-      if (l.id === layerId) return { ...l, order: targetOrder };
-      if (l.id === otherLayer.id) return { ...l, order: currentOrder };
-      return l;
-    });
+    const reordered = newSorted.map((layer, index) => ({
+      ...layer,
+      order: index,
+    }));
 
-    onReorderLayers(newLayers);
+    onReorderLayers(reordered);
   };
 
   const handleColorChange = (layerId: string, newHex: string) => {
     const lab = hexToOklab(newHex);
-    const lch = oklabToOklch(lab.L, lab.a, lab.b);
+    const lch = hexToOklch(newHex);
 
     onUpdateLayer(layerId, prev => ({
       ...prev,
@@ -59,21 +63,40 @@ export const LayerManagerPanel: React.FC<LayerManagerPanelProps> = ({
     }));
   };
 
+  const handleResetToComputed = (layerId: string, computedHex: string) => {
+    const lab = hexToOklab(computedHex);
+    const lch = hexToOklch(computedHex);
+
+    onUpdateLayer(layerId, prev => ({
+      ...prev,
+      swatch: {
+        ...prev.swatch,
+        hex: computedHex,
+        oklab: [lab.L, lab.a, lab.b],
+        oklch: [lch.L, lch.C, lch.h],
+      },
+    }));
+  };
+
   return (
-    <div className="space-y-2 text-xs">
-      <div className="flex items-center justify-between text-[11px] text-sand-400 pb-1 border-b border-sand-400/10">
-        <span className="font-gorton uppercase">Stack Z-Order (Top to Base)</span>
-        <span className="font-mono">{layers.length} Layers</span>
+    <div className="space-y-3 text-xs">
+      <div className="flex items-center justify-between text-[11px] text-sand-400 font-gorton uppercase">
+        <span>Z-Stack (Top to Base Sheet)</span>
+        <span>{layers.length} Layers</span>
       </div>
 
       <div className="space-y-1.5">
-        {sortedLayers.map((layer) => {
-          const isSelected = selectedLayerId === layer.id;
+        {visualStack.map((layer, visualIdx) => {
+          const isSelected = layer.id === selectedLayerId;
           const isBase = layer.order === 0;
           const isTop = layer.order === layers.length - 1;
           const isSolid = layer.isSolidBacking !== false;
+          const isCustomColor =
+            layer.swatch.computedHex &&
+            layer.swatch.hex.toLowerCase() !== layer.swatch.computedHex.toLowerCase();
+
           const vec = vectorResults.get(layer.id);
-          const coveragePct = pixelPercentages[layer.order] ?? vec?.areaPercentage ?? 0;
+          const coveragePct = pixelPercentages[layer.order] ?? 0;
 
           return (
             <div
@@ -81,22 +104,22 @@ export const LayerManagerPanel: React.FC<LayerManagerPanelProps> = ({
               onClick={() => onSelectLayer(layer.id)}
               className={`p-2.5 rounded-lg border transition-all cursor-pointer ${
                 isSelected
-                  ? 'border-emerald-400 bg-moss-700/80 shadow-md ring-1 ring-emerald-400/30'
-                  : 'border-sand-400/15 bg-moss-800/40 hover:bg-moss-800/70 hover:border-sand-400/30'
+                  ? 'border-emerald-400 bg-moss-800/80 shadow-md ring-1 ring-emerald-400/40'
+                  : 'border-sand-400/20 bg-moss-900/60 hover:bg-moss-800/40 hover:border-sand-400/35'
               }`}
             >
               <div className="flex items-center justify-between gap-2">
-                {/* Color Swatch Chip & Label */}
+                {/* Left: Swatch picker & Label */}
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="relative group shrink-0">
+                  <div className="relative shrink-0 flex items-center justify-center">
                     <input
                       type="color"
-                      value={layer.swatch.hex}
                       disabled={isBase && !isSolid}
-                      onClick={e => e.stopPropagation()}
+                      value={isBase && !isSolid ? '#000000' : layer.swatch.hex}
                       onChange={e => handleColorChange(layer.id, e.target.value)}
-                      className={`absolute inset-0 opacity-0 cursor-pointer w-6 h-6 z-10 ${
-                        isBase && !isSolid ? 'cursor-not-allowed pointer-events-none' : ''
+                      onClick={e => e.stopPropagation()}
+                      className={`absolute inset-0 w-full h-full opacity-0 cursor-pointer ${
+                        isBase && !isSolid ? 'pointer-events-none' : ''
                       }`}
                       title={isBase && !isSolid ? "Void mode (transparent)" : "Change layer color"}
                     />
@@ -128,8 +151,19 @@ export const LayerManagerPanel: React.FC<LayerManagerPanelProps> = ({
                   </div>
                 </div>
 
-                {/* Right controls: Solid/Void switch for Base, or Order arrows for other layers */}
+                {/* Right controls: Reset button (if custom color), Solid/Void switch for Base, or Order arrows */}
                 <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
+                  {isCustomColor && (
+                    <button
+                      type="button"
+                      onClick={() => handleResetToComputed(layer.id, layer.swatch.computedHex!)}
+                      className="p-1 rounded text-sand-400 hover:text-emerald-400 hover:bg-moss-950 transition-colors"
+                      title={`Reset to computed centroid (${layer.swatch.computedHex!.toUpperCase()})`}
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+
                   {isBase ? (
                     <button
                       type="button"

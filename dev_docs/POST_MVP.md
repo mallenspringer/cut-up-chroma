@@ -157,5 +157,29 @@ A dedicated, standalone companion web tool designed to ingest multi-layer SVG cu
   - Simulates dynamic backlighting, edge-lit acrylic glow, variable shadow diffusion between sheets, and interactive 3D mouse/gyroscope parallax.
   - Outputs standalone, zero-dependency embeddable widgets for web portfolios, digital art galleries, and interactive product showcases.
 
+---
 
+## 8. Interactive Click-to-Reassign (HUD Loupe & Region Remap Tool)
 
+An interactive visual diagnostic and editing tool built directly into the Quantized / Layer editing workstation:
+
+```text
+ ┌───────────────────────────────────────────────────────────────────────────┐
+ │ Interactive Pixel & Region Reassignment HUD                              │
+ ├───────────────────────────────────────────────────────────────────────────┤
+ │  ├── 1. Floating Hover Loupe (OKLCH Inspector)                            │
+ │  │     ├── Real-time L, C, h readouts at cursor pixel                     │
+ │  │     ├── Delta-E distance to active palette swatches                    │
+ │  │     └── Runner-up swatch indicator ("Assigned to #1; 2nd candidate: #3")│
+ │  │                                                                        │
+ │  └── 2. Region Reassign Tool (Lasso / Connected Component Remap)          │
+ │        ├── 1-Click reassign contiguous quantized color patch to another   │
+ │        │   layer without drawing manual bridge strokes                     │
+ │        └── Non-destructive layer override mask layer                      │
+ └───────────────────────────────────────────────────────────────────────────┘
+```
+
+* **Hover Inspector Loupe:**
+  - Hovering over pixels in the Quantized View shows exact OKLCH values, distance $\Delta E$ to the chosen swatch, and runner-up candidate swatches.
+* **1-Click Connected Component Remap:**
+  - Allows clicking any contiguous color island to instantly reassign it to a different physical layer without needing to draw bridge strokes or erase pixels manually.

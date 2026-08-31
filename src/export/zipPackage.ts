@@ -10,28 +10,45 @@ export function createZipPackage(
   vectorResults: Map<string, VectorLayerResult>,
   canvas: CanvasSettings,
   prefix: string = 'CutUp_Chroma',
-  includeRegistrationMarks: boolean = false
+  includeRegistrationMarks: boolean = false,
+  processingDimensions?: { width: number; height: number }
 ): Blob {
   const files: Record<string, Uint8Array> = {};
 
   const cleanPrefix = (prefix || 'CutUp_Chroma').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
 
   // 1. Master Combined Multi-Color SVG
-  const masterSvg = generateMasterCombinedSVG(layers, vectorResults, canvas, {
-    strokeOnly: false,
-    includeRegistrationMarks,
-  });
+  const masterSvg = generateMasterCombinedSVG(
+    layers,
+    vectorResults,
+    canvas,
+    {
+      strokeOnly: false,
+      includeRegistrationMarks,
+    },
+    processingDimensions
+  );
   files[`${cleanPrefix}_Master_Combined.svg`] = strToU8(masterSvg);
 
   // 2. Individual Per-Layer SVG Cut Files
   const sortedLayers = [...layers].sort((a, b) => a.order - b.order);
 
   sortedLayers.forEach((layer, idx) => {
+    const isLayer0 = idx === 0;
+    const isVoid = isLayer0 && layer.isSolidBacking === false;
+    if (isVoid) return; // Void base has no physical cut material
+
     const vec = vectorResults.get(layer.id);
-    const layerSvg = generateSingleLayerSVG(layer, vec, canvas, {
-      strokeOnly: true,
-      includeRegistrationMarks,
-    });
+    const layerSvg = generateSingleLayerSVG(
+      layer,
+      vec,
+      canvas,
+      {
+        strokeOnly: true,
+        includeRegistrationMarks,
+      },
+      processingDimensions
+    );
 
     const sheetNum = String(idx + 1).padStart(2, '0');
     const colorLabel = layer.swatch.name.replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -73,8 +90,19 @@ export function downloadBlob(blob: Blob, filename: string): void {
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+  // Defer cleanup by 45 seconds so Chrome background download manager stream doesn't get aborted
+  setTimeout(() => {
+    try {
+      if (document.body.contains(a)) {
+        document.body.removeChild(a);
+      }
+      URL.revokeObjectURL(url);
+    } catch {
+      // Ignore if already revoked
+    }
+  }, 45000);
 }

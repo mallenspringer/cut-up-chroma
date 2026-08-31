@@ -16,13 +16,16 @@ export interface ResampledBuffer {
 
 /**
  * Resamples the source image into a working target buffer according to crop, scale, and position.
- * Preserves exact aspect ratio and handles bounded canvas coordinates.
+ * Fits within the interior printable bounds (accounting for page margins) in the full canvas processing buffer.
+ * Pixels outside the placed image boundary are tagged with alpha = 0 (margin space).
  */
 export function resampleWorkingImage(
   source: SourceImage,
   workingState: WorkingImageState,
   targetWidth: number,
   targetHeight: number,
+  pageWidthPx?: number,
+  pageHeightPx?: number,
   printableWidthPx?: number,
   printableHeightPx?: number
 ): ResampledBuffer {
@@ -37,7 +40,6 @@ export function resampleWorkingImage(
   }
 
   const srcData = source.imageData.data;
-  // Always use exact buffer dimensions from source.imageData for pixel stride
   const srcW = source.imageData.width;
   const srcH = source.imageData.height;
 
@@ -48,15 +50,22 @@ export function resampleWorkingImage(
   const cropW = (crop && crop.width > 0) ? crop.width : srcW;
   const cropH = (crop && crop.height > 0) ? crop.height : srcH;
 
-  const printW = printableWidthPx || targetWidth;
-  const printH = printableHeightPx || targetHeight;
+  // Scale offset from display page pixels to target processing buffer pixels
+  const pW = pageWidthPx || targetWidth;
+  const pH = pageHeightPx || targetHeight;
+  const scaleToTargetX = targetWidth / Math.max(1, pW);
+  const scaleToTargetY = targetHeight / Math.max(1, pH);
 
-  const targetPosX = workingState.position?.x || 0;
-  const targetPosY = workingState.position?.y || 0;
+  // Scaled printable boundary inside the full canvas processing buffer
+  const printW = (printableWidthPx !== undefined ? printableWidthPx : pW) * scaleToTargetX;
+  const printH = (printableHeightPx !== undefined ? printableHeightPx : pH) * scaleToTargetY;
+
+  const targetPosX = (workingState.position?.x || 0) * scaleToTargetX;
+  const targetPosY = (workingState.position?.y || 0) * scaleToTargetY;
   const scaleX = workingState.scaleX || 1.0;
   const scaleY = workingState.scaleY || 1.0;
 
-  // Preserve crop aspect ratio relative to printable canvas area
+  // Fit crop aspect ratio into printable area boundary (matching CSS object-contain)
   const cropAspect = cropW / Math.max(1, cropH);
   const targetAspect = printW / Math.max(1, printH);
   let baseW = printW;
@@ -103,7 +112,7 @@ export function resampleWorkingImage(
         result[targetIdx + 2] = srcData[srcIdx + 2];
         result[targetIdx + 3] = srcData[srcIdx + 3];
       } else {
-        // Transparent outside placed image bounds
+        // Transparent outside placed image bounds (margins / extra-image space)
         result[targetIdx] = 0;
         result[targetIdx + 1] = 0;
         result[targetIdx + 2] = 0;

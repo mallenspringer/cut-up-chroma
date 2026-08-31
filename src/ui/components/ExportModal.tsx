@@ -26,17 +26,40 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   if (!isOpen) return null;
 
   const handleDownloadMasterSVG = () => {
-    const svgStr = generateMasterCombinedSVG(layers, vectorResults, canvas, {
-      strokeOnly: false,
-      includeRegistrationMarks: registrationMarks,
-    });
-    const blob = new Blob([svgStr], { type: 'image/svg+xml' });
-    downloadBlob(blob, `${exportPrefix}_Master_Combined.svg`);
+    const firstVec = Array.from(vectorResults.values())[0];
+    const processingDimensions = firstVec?.width && firstVec?.height
+      ? { width: firstVec.width, height: firstVec.height }
+      : undefined;
+
+    const svgStr = generateMasterCombinedSVG(
+      layers,
+      vectorResults,
+      canvas,
+      {
+        strokeOnly: false,
+        includeRegistrationMarks: registrationMarks,
+      },
+      processingDimensions
+    );
+    const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+    downloadBlob(blob, `${exportPrefix || 'CutUp_Chroma'}_Master_Combined.svg`);
   };
 
   const handleDownloadZip = () => {
-    const zipBlob = createZipPackage(layers, vectorResults, canvas, exportPrefix, registrationMarks);
-    downloadBlob(zipBlob, `${exportPrefix}_Production_Cut_Package.zip`);
+    const firstVec = Array.from(vectorResults.values())[0];
+    const processingDimensions = firstVec?.width && firstVec?.height
+      ? { width: firstVec.width, height: firstVec.height }
+      : undefined;
+
+    const zipBlob = createZipPackage(
+      layers,
+      vectorResults,
+      canvas,
+      exportPrefix,
+      registrationMarks,
+      processingDimensions
+    );
+    downloadBlob(zipBlob, `${exportPrefix || 'CutUp_Chroma'}_Production_Cut_Package.zip`);
   };
 
   const handlePrint = () => {

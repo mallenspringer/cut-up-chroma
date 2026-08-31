@@ -52,10 +52,13 @@ export interface CanvasSettings {
   orientation: 'portrait' | 'landscape';
 }
 
+export type ClusteringAlgorithm = 'kmeans_pp' | 'saliency' | 'luma_ramp' | 'median_cut';
+
 export interface ChromaSwatch {
   id: string;
   name: string;
-  hex: string;
+  hex: string; // Active physical or custom cardstock color
+  computedHex?: string; // Original mathematical centroid from clustering engine
   oklab: [number, number, number]; // [L, a, b]
   oklch: [number, number, number]; // [L, C, H]
 }
@@ -95,6 +98,9 @@ export interface ChromaLayerState {
 export interface ChromaProcessingSettings {
   assemblyMode: AssemblyMode;
   colorCount: number; // K (2 to 10)
+  clusteringAlgorithm?: ClusteringAlgorithm; // default: 'kmeans_pp'
+  accentSensitivity?: number; // 0.0 to 1.0 (default: 0.5) for Saliency mode
+  lumaRampGamma?: number; // 0.2 to 3.0 (default: 1.0) for Luma Ramp mode
   colorBias: number; // 0.0 (Graphic Hue) to 1.0 (Tonal Luma), default 0.5
   hueWeight: number; // 0.0 to 3.0 (default: 1.0)
   lightnessWeight: number; // 0.0 to 3.0 (default: 1.0)
@@ -161,4 +167,6 @@ export interface VectorLayerResult {
   underlapPathData?: string;
   pathCount: number;
   areaPercentage: number;
+  width?: number;
+  height?: number;
 }

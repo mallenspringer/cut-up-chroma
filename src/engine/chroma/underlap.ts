@@ -42,15 +42,19 @@ export function dilateBinaryMask(mask: BinaryMask, radiusPx: number): BinaryMask
 }
 
 /**
- * Computes physical layer masks with seam underlap for stacked relief or inlay mosaic.
- * Completely guarded against layer/mask array length mismatches during slider changes.
+ * Computes physical layer masks with seam underlap and margin positive space union.
+ * In Stacked Relief mode:
+ * - Layer 0 (Solid): 100% solid paper sheet (or void if false)
+ * - Layers 1..N-1: Margin space (alpha < 128) is solid paper (1), unioning seamlessly
+ *   with abutting color shapes into continuous physical cardstock sheets.
  */
 export function generatePhysicalLayerMasks(
   rawMasks: BinaryMask[],
   layers: ChromaLayerState[],
   assemblyMode: AssemblyMode,
   pxPerMm: number,
-  globalUnderlapBleedMm: number = 0.5
+  globalUnderlapBleedMm: number = 0.5,
+  alpha?: Uint8Array | null
 ): {
   finalMasks: BinaryMask[];
   underlapOverlays: BinaryMask[];
@@ -88,7 +92,7 @@ export function generatePhysicalLayerMasks(
     .map((l, index) => ({
       index,
       order: l.order,
-      isSolidBacking: !!l.isSolidBacking,
+      isSolidBacking: l.isSolidBacking !== false,
       bleed: globalUnderlapBleedMm,
     }))
     .filter(item => item.index < numLayers && rawMasks[item.index]?.data)
@@ -133,42 +137,46 @@ export function generatePhysicalLayerMasks(
     const rawData = rawMask.data;
 
     // Solid backing handling for base layer (z === 0)
-    if (z === 0 && isSolidBacking) {
-      const solidData = new Uint8Array(totalPixels);
-      for (let k = 0; k < numLayers; k++) {
-        const kMask = rawMasks[k];
-        if (!kMask?.data) continue;
-        const kData = kMask.data;
-        for (let i = 0; i < totalPixels; i++) {
-          if (kData[i] === 1) solidData[i] = 1;
+    if (z === 0) {
+      if (isSolidBacking) {
+        const solidData = new Uint8Array(totalPixels);
+        solidData.fill(1); // 100% solid paper cardstock base
+        finalMasks[originalIdx] = { width, height, data: solidData };
+      } else {
+        const voidData = new Uint8Array(totalPixels);
+        voidData.fill(0); // 100% void / empty space
+        finalMasks[originalIdx] = { width, height, data: voidData };
+      }
+      continue;
+    }
+
+    const outData = new Uint8Array(totalPixels);
+    const overlayData = new Uint8Array(totalPixels);
+
+    if (z === sortedIndices.length - 1 || bleed <= 0) {
+      // Top layer or zero bleed: Combine raw mask + margin positive space
+      for (let i = 0; i < totalPixels; i++) {
+        if (alpha && alpha[i] < 128) {
+          // Margin / extra-image space is solid paper (1) unioned into the sheet
+          outData[i] = 1;
+        } else if (rawData[i] === 1) {
+          outData[i] = 1;
         }
       }
-      finalMasks[originalIdx] = { width, height, data: solidData };
-      continue;
-    }
-
-    if (z === sortedIndices.length - 1) {
-      // Top layer never dilates
-      finalMasks[originalIdx] = { width, height, data: new Uint8Array(rawData) };
-      continue;
-    }
-
-    // If bleed is zero, return exact cut shape
-    if (bleed <= 0) {
-      finalMasks[originalIdx] = { width, height, data: new Uint8Array(rawData) };
+      finalMasks[originalIdx] = { width, height, data: outData };
       continue;
     }
 
     // Dilate raw mask by bleed radius into upper layer regions
     const bleedPx = Math.max(1, Math.round(bleed * pxPerMm));
     const dilated = dilateBinaryMask(rawMask, bleedPx);
-
-    const outData = new Uint8Array(totalPixels);
-    const overlayData = new Uint8Array(totalPixels);
     const upperMask = upperUnions[z] || new Uint8Array(totalPixels);
 
     for (let i = 0; i < totalPixels; i++) {
-      if (rawData[i] === 1) {
+      if (alpha && alpha[i] < 128) {
+        // Margin / extra-image space is solid paper (1) unioned into the sheet
+        outData[i] = 1;
+      } else if (rawData[i] === 1) {
         outData[i] = 1;
       } else if (dilated.data[i] === 1 && upperMask[i] === 1) {
         outData[i] = 1;

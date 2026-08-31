@@ -118,5 +118,7 @@ export function traceBinaryMaskToSVG(
     pathData: rawPathData,
     pathCount,
     areaPercentage,
+    width,
+    height,
   };
 }

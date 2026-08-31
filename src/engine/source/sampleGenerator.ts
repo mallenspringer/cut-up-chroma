@@ -3,6 +3,7 @@ import { SourceImage } from '../types';
 /**
  * Generates an 8x6 (48-patch) Perceptual Color Calibration Test Pattern
  * with rich hue distributions, neutral lightness ramps, earth tones, and saturated jewel tones.
+ * All color patches are guaranteed to be exact squares.
  */
 export function generateCalibrationPattern(width: number = 800, height: number = 600): SourceImage {
   if (typeof document === 'undefined') {
@@ -24,25 +25,32 @@ export function generateCalibrationPattern(width: number = 800, height: number =
     throw new Error('Could not create canvas context');
   }
 
-  // Studio Slate / Dark Card Background
+  // Dark slate background
   ctx.fillStyle = '#1b281f';
   ctx.fillRect(0, 0, width, height);
-
-  // Border & Framing
-  ctx.strokeStyle = '#dfd29e';
-  ctx.lineWidth = 4;
-  ctx.strokeRect(12, 12, width - 24, height - 24);
 
   // Calibration Matrix: 8 columns x 6 rows = 48 distinct perceptual color patches
   const cols = 8;
   const rows = 6;
-  const padX = 24;
-  const padY = 24;
-  const gridW = width - padX * 2;
-  const gridH = height - padY * 2;
-  const patchGap = 8;
-  const cellW = (gridW - (cols - 1) * patchGap) / cols;
-  const cellH = (gridH - (rows - 1) * patchGap) / rows;
+  const marginX = 16;
+  const marginY = 16;
+  const gap = 8;
+
+  const availW = width - marginX * 2;
+  const availH = height - marginY * 2;
+
+  const rawCellW = (availW - (cols - 1) * gap) / cols;
+  const rawCellH = (availH - (rows - 1) * gap) / rows;
+
+  // Enforce perfectly square swatches
+  const patchSize = Math.floor(Math.min(rawCellW, rawCellH));
+
+  const totalGridW = cols * patchSize + (cols - 1) * gap;
+  const totalGridH = rows * patchSize + (rows - 1) * gap;
+
+  // Center the grid of square patches inside the image
+  const startX = Math.round((width - totalGridW) / 2);
+  const startY = Math.round((height - totalGridH) / 2);
 
   const PALETTE_GRID: string[][] = [
     // Row 1: 8-Step Neutral Grayscale Ramp
@@ -67,21 +75,21 @@ export function generateCalibrationPattern(width: number = 800, height: number =
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const color = PALETTE_GRID[r][c];
-      const px = padX + c * (cellW + patchGap);
-      const py = padY + r * (cellH + patchGap);
+      const px = startX + c * (patchSize + gap);
+      const py = startY + r * (patchSize + gap);
 
-      // Patch shadow / bevel
+      // Subtle drop shadow / bevel
       ctx.fillStyle = '#0f1712';
-      ctx.fillRect(px - 1, py - 1, cellW + 2, cellH + 2);
+      ctx.fillRect(px - 1, py - 1, patchSize + 2, patchSize + 2);
 
       // Patch Fill
       ctx.fillStyle = color;
-      ctx.fillRect(px, py, cellW, cellH);
+      ctx.fillRect(px, py, patchSize, patchSize);
 
-      // Fine inner border
+      // Subtle border
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
       ctx.lineWidth = 1;
-      ctx.strokeRect(px + 0.5, py + 0.5, cellW - 1, cellH - 1);
+      ctx.strokeRect(px + 0.5, py + 0.5, patchSize - 1, patchSize - 1);
     }
   }
 
@@ -99,19 +107,28 @@ export function generateCalibrationPattern(width: number = 800, height: number =
   };
 }
 
-/** Extracts ImageData from an HTMLImageElement with max dimension protection */
-export function extractImageDataFromImage(image: HTMLImageElement, maxDim: number = 2048): ImageData {
-  const natW = image.naturalWidth || image.width || 800;
-  const natH = image.naturalHeight || image.height || 600;
+/**
+ * Extracts ImageData from an HTMLImageElement with optional max dimension downscaling
+ */
+export function extractImageDataFromImage(img: HTMLImageElement, maxDimension: number = 2048): ImageData {
+  let w = img.naturalWidth || img.width;
+  let h = img.naturalHeight || img.height;
 
-  const scale = Math.min(1, maxDim / Math.max(natW, natH));
-  const targetW = Math.max(1, Math.round(natW * scale));
-  const targetH = Math.max(1, Math.round(natH * scale));
+  if (w > maxDimension || h > maxDimension) {
+    if (w >= h) {
+      h = Math.round((h * maxDimension) / w);
+      w = maxDimension;
+    } else {
+      w = Math.round((w * maxDimension) / h);
+      h = maxDimension;
+    }
+  }
 
   const canvas = document.createElement('canvas');
-  canvas.width = targetW;
-  canvas.height = targetH;
-  const ctx = canvas.getContext('2d')!;
-  ctx.drawImage(image, 0, 0, targetW, targetH);
-  return ctx.getImageData(0, 0, targetW, targetH);
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Failed to get 2d context for image data extraction');
+  ctx.drawImage(img, 0, 0, w, h);
+  return ctx.getImageData(0, 0, w, h);
 }

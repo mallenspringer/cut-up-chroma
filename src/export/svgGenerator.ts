@@ -9,15 +9,18 @@ export interface SVGExportOptions {
 }
 
 /**
- * Generates unit-accurate Master Combined Multi-Color SVG
+ * Generates unit-accurate Master Combined Multi-Color SVG with full physical sheet dimensions
  */
 export function generateMasterCombinedSVG(
   layers: ChromaLayerState[],
   vectorResults: Map<string, VectorLayerResult>,
   canvas: CanvasSettings,
-  options: SVGExportOptions = {}
+  options: SVGExportOptions = {},
+  processingDimensions?: { width: number; height: number }
 ): string {
-  const { widthMm, heightMm, printableWidthPx, printableHeightPx, pxPerMm } = getPrintableArea(canvas);
+  const { widthMm, heightMm, widthPx, heightPx, pxPerMm } = getPrintableArea(canvas);
+  const viewW = processingDimensions?.width || widthPx;
+  const viewH = processingDimensions?.height || heightPx;
 
   const isStrokeOnly = !!options.strokeOnly;
   const strokeColor = options.strokeColor || '#000000';
@@ -27,8 +30,15 @@ export function generateMasterCombinedSVG(
   const sortedLayers = [...layers].sort((a, b) => a.order - b.order);
 
   const layerGroups = sortedLayers.map((layer, index) => {
+    const isLayer0 = layer.order === 0;
+    const isVoid = isLayer0 && layer.isSolidBacking === false;
+    if (isVoid) {
+      return '';
+    }
+
+    const isSolid = isLayer0 && layer.isSolidBacking !== false;
     const vec = vectorResults.get(layer.id);
-    const pathData = vec?.pathData || '';
+    const pathData = isSolid ? `M 0 0 H ${viewW} V ${viewH} H 0 Z` : (vec?.pathData || '');
     if (!pathData) return '';
 
     const sanitizedName = layer.swatch.name.replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -51,7 +61,7 @@ export function generateMasterCombinedSVG(
   }).filter(Boolean).join('\n');
 
   const regMarks = options.includeRegistrationMarks
-    ? `\n  <!-- Registration Marks -->\n  <g id="registration_marks">\n    <path d="${generateRegistrationMarksSVG(canvas, printableWidthPx, printableHeightPx)}" stroke="#000000" stroke-width="0.8" fill="none" />\n  </g>`
+    ? `\n  <!-- Registration Marks -->\n  <g id="registration_marks">\n    <path d="${generateRegistrationMarksSVG(canvas, viewW, viewH)}" stroke="#000000" stroke-width="0.8" fill="none" />\n  </g>`
     : '';
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
@@ -60,7 +70,7 @@ export function generateMasterCombinedSVG(
   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
   width="${widthMm}mm"
   height="${heightMm}mm"
-  viewBox="0 0 ${printableWidthPx} ${printableHeightPx}"
+  viewBox="0 0 ${viewW} ${viewH}"
   version="1.1"
 >
   <title>CutUp Chroma Master Cut Pattern</title>
@@ -70,16 +80,27 @@ ${layerGroups}${regMarks}
 }
 
 /**
- * Generates an isolated single-layer vector cut SVG
+ * Generates an isolated single-layer vector cut SVG with full physical sheet dimensions
  */
 export function generateSingleLayerSVG(
   layer: ChromaLayerState,
   vectorResult: VectorLayerResult | undefined,
   canvas: CanvasSettings,
-  options: SVGExportOptions = {}
+  options: SVGExportOptions = {},
+  processingDimensions?: { width: number; height: number }
 ): string {
-  const { widthMm, heightMm, printableWidthPx, printableHeightPx, pxPerMm } = getPrintableArea(canvas);
-  const pathData = vectorResult?.pathData || '';
+  const { widthMm, heightMm, widthPx, heightPx, pxPerMm } = getPrintableArea(canvas);
+  const viewW = processingDimensions?.width || widthPx;
+  const viewH = processingDimensions?.height || heightPx;
+
+  const isLayer0 = layer.order === 0;
+  const isVoid = isLayer0 && layer.isSolidBacking === false;
+  if (isVoid) {
+    return '';
+  }
+
+  const isSolid = isLayer0 && layer.isSolidBacking !== false;
+  const pathData = isSolid ? `M 0 0 H ${viewW} V ${viewH} H 0 Z` : (vectorResult?.pathData || '');
 
   const isStrokeOnly = options.strokeOnly !== false;
   const strokeColor = options.strokeColor || '#000000';
@@ -87,7 +108,7 @@ export function generateSingleLayerSVG(
   const fillAttr = isStrokeOnly ? 'none' : layer.swatch.hex;
 
   const regMarks = options.includeRegistrationMarks
-    ? `\n  <!-- Registration Marks -->\n  <g id="registration_marks">\n    <path d="${generateRegistrationMarksSVG(canvas, printableWidthPx, printableHeightPx)}" stroke="#000000" stroke-width="0.8" fill="none" />\n  </g>`
+    ? `\n  <!-- Registration Marks -->\n  <g id="registration_marks">\n    <path d="${generateRegistrationMarksSVG(canvas, viewW, viewH)}" stroke="#000000" stroke-width="0.8" fill="none" />\n  </g>`
     : '';
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
@@ -95,7 +116,7 @@ export function generateSingleLayerSVG(
   xmlns="http://www.w3.org/2000/svg"
   width="${widthMm}mm"
   height="${heightMm}mm"
-  viewBox="0 0 ${printableWidthPx} ${printableHeightPx}"
+  viewBox="0 0 ${viewW} ${viewH}"
   version="1.1"
 >
   <title>Layer: ${layer.swatch.name} (${layer.swatch.hex})</title>
