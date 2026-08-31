@@ -141,12 +141,15 @@ export interface AppOutputSettings {
   exportPrefix: string;
 }
 
+import { SurfaceTextureConfig } from './texturing/types';
+
 export interface AppState {
   sourceImage: SourceImage | null;
   workingImage: WorkingImageState;
   canvas: CanvasSettings;
   processing: ChromaProcessingSettings;
   aestheticFilter: AestheticFilterState;
+  surfaceTexture?: SurfaceTextureConfig;
   palette: ChromaSwatch[];
   layers: ChromaLayerState[];
   selectedLayerId: string | null;

@@ -34,6 +34,9 @@ import { CollapsibleSection } from './ui/components/CollapsibleSection';
 import { PreferencesModal } from './ui/components/PreferencesModal';
 import { CookieConsentBanner } from './ui/components/CookieConsentBanner';
 import { filterBinaryMaskCanvas } from './engine/manufacturing/canvasFilter';
+import { applySurfaceTexturing } from './engine/texturing/patternEngine';
+import { DEFAULT_SURFACE_TEXTURE_CONFIG } from './engine/texturing/types';
+import { SurfaceTexturePanel } from './ui/components/SurfaceTexturePanel';
 
 import {
   Scissors,
@@ -151,6 +154,7 @@ export const App: React.FC = () => {
     canvas: INITIAL_CANVAS,
     processing: INITIAL_PROCESSING,
     aestheticFilter: DEFAULT_AESTHETIC_FILTER_STATE,
+    surfaceTexture: DEFAULT_SURFACE_TEXTURE_CONFIG,
     palette: initialPalette,
     layers: initialLayers,
     selectedLayerId: initialLayers[0]?.id || 'layer-1',
@@ -450,10 +454,10 @@ export const App: React.FC = () => {
   const throttledLayers = useThrottledValue(state.layers, 220);
   const vectorCacheRef = useRef<Map<string, VectorLayerResult>>(new Map());
 
-  // Invalidate vector cache when palette, source image, or aesthetic filter changes
+  // Invalidate vector cache when palette, source image, aesthetic filter, or surface texturing changes
   useEffect(() => {
     vectorCacheRef.current.clear();
-  }, [state.palette, state.sourceImage, state.aestheticFilter]);
+  }, [state.palette, state.sourceImage, state.aestheticFilter, state.surfaceTexture]);
 
   // -------------------------------------------------------------
   // Precompute OKLCH Float32Array Cache (Runs once on image load/filter change)
@@ -500,11 +504,28 @@ export const App: React.FC = () => {
   }, [classification.layerMasks, throttledLayers, throttledProcessing.assemblyMode, throttledProcessing.underlapBleedMm, precomputedOklch?.alpha, state.canvas]);
 
   // -------------------------------------------------------------
+  // Pipeline Step 3c: Physical Surface Texturing & Negative Space Gradients
+  // -------------------------------------------------------------
+  const texturedMasks = useMemo(() => {
+    if (!state.surfaceTexture?.enabled || finalMasks.length === 0) {
+      return finalMasks;
+    }
+    const printable = getPrintableArea(state.canvas);
+    return applySurfaceTexturing(
+      finalMasks,
+      throttledLayers,
+      state.surfaceTexture,
+      printable.pxPerMm,
+      precomputedOklch?.alpha
+    );
+  }, [finalMasks, throttledLayers, state.surfaceTexture, state.canvas, precomputedOklch?.alpha]);
+
+  // -------------------------------------------------------------
   // Pipeline Step 4: Robust & Cached Potrace Vector Tracing
   // -------------------------------------------------------------
   const vectorResults = useMemo(() => {
     const results = new Map<string, VectorLayerResult>();
-    if (finalMasks.length === 0 || throttledLayers.length === 0) {
+    if (texturedMasks.length === 0 || throttledLayers.length === 0) {
       return results;
     }
 
@@ -512,13 +533,14 @@ export const App: React.FC = () => {
 
     throttledLayers.forEach((layer) => {
       const idx = throttledLayers.findIndex(l => l.id === layer.id);
-      const rawMask = finalMasks[idx];
+      const rawMask = texturedMasks[idx];
       if (!rawMask) return;
 
-      // Cache key for vector path including canvas size, margin, and aesthetic filter
+      // Cache key for vector path including canvas size, margin, aesthetic filter, and texturing
       const editsHash = JSON.stringify(layer.manualEdits || {});
       const filterHash = JSON.stringify(state.aestheticFilter);
-      const cacheKey = `${layer.id}:${rawMask.width}x${rawMask.height}:${state.canvas.width}x${state.canvas.height}${state.canvas.unit}:${state.canvas.margin}:${throttledProcessing.minimumFeatureSize}:${throttledProcessing.smoothing}:${throttledProcessing.assemblyMode}:${throttledProcessing.underlapBleedMm}:${throttledProcessing.colorBias}:${throttledProcessing.hueWeight}:${throttledProcessing.lightnessWeight}:${throttledProcessing.chromaWeight}:${throttledProcessing.chromaFloor}:${filterHash}:${editsHash}`;
+      const textureHash = JSON.stringify(state.surfaceTexture || {});
+      const cacheKey = `${layer.id}:${rawMask.width}x${rawMask.height}:${state.canvas.width}x${state.canvas.height}${state.canvas.unit}:${state.canvas.margin}:${throttledProcessing.minimumFeatureSize}:${throttledProcessing.smoothing}:${throttledProcessing.assemblyMode}:${throttledProcessing.underlapBleedMm}:${throttledProcessing.colorBias}:${throttledProcessing.hueWeight}:${throttledProcessing.lightnessWeight}:${throttledProcessing.chromaWeight}:${throttledProcessing.chromaFloor}:${filterHash}:${textureHash}:${editsHash}`;
 
       const cached = vectorCacheRef.current.get(cacheKey);
       if (cached) {
@@ -745,6 +767,24 @@ export const App: React.FC = () => {
             }
             defaultOpen={false}
           />
+
+          {/* 1b. Physical Surface Textures & Gradients (Collapsed on load) */}
+          <CollapsibleSection
+            title="Surface Textures & Gradients"
+            icon={<Sparkles className="w-3.5 h-3.5 text-sand-400" />}
+            badge={state.surfaceTexture?.enabled ? 'On' : undefined}
+            defaultExpanded={false}
+          >
+            <SurfaceTexturePanel
+              config={state.surfaceTexture || DEFAULT_SURFACE_TEXTURE_CONFIG}
+              onChange={updater =>
+                updateState(prev => ({
+                  ...prev,
+                  surfaceTexture: updater(prev.surfaceTexture || DEFAULT_SURFACE_TEXTURE_CONFIG),
+                }))
+              }
+            />
+          </CollapsibleSection>
 
           {/* 2. Canvas & Material Sizing Section (Directly below Clearance, closed on load) */}
           <CollapsibleSection

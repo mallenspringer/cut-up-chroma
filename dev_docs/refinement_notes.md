@@ -1,0 +1,4 @@
+- Remove redundancy in export
+- refine autonaming in export
+- Consider adding cut view, screen real estate allowing
+- what's with the arrows next to composite 3d stack tab?
