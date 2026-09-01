@@ -285,88 +285,155 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     }
   };
 
-  const handleSheetMouseMove = (e: React.MouseEvent) => {
-    const rect = pageFrameRef.current?.getBoundingClientRect();
-    if (!rect) return;
+  // Window-level mouse listener for smooth dragging beyond canvas margins
+  useEffect(() => {
+    if (sourceDragMode === 'none' && !bridgeStart) return;
 
-    const clientX = (e.clientX - rect.left) / zoom;
-    const clientY = (e.clientY - rect.top) / zoom;
-    const normX = Math.max(0, Math.min(1, clientX / printable.widthPx));
-    const normY = Math.max(0, Math.min(1, clientY / printable.heightPx));
-
-    // TAB 1: Source Framing Drag Updates (Local state for 60fps smoothness)
-    if (activeTab === 'source' && sourceDragMode !== 'none' && dragStartMouse && dragInitialWorking && placedImageGeometry) {
-      const dx = clientX - dragStartMouse.x;
-      const dy = clientY - dragStartMouse.y;
-
-      if (sourceDragMode === 'move') {
-        setLocalWorkingImage({
-          ...dragInitialWorking,
-          position: {
-            x: Math.round(dragInitialWorking.position.x + dx),
-            y: Math.round(dragInitialWorking.position.y + dy),
-          },
-        });
-      } else if (sourceDragMode.startsWith('scale')) {
-        const { baseW, baseH } = placedImageGeometry;
-        const initialScale = dragInitialWorking.scaleX;
-        let scaleDelta = 0;
-
-        if (sourceDragMode === 'scale-br') {
-          scaleDelta = (dx / baseW + dy / baseH) / 2;
-        } else if (sourceDragMode === 'scale-tl') {
-          scaleDelta = (-dx / baseW - dy / baseH) / 2;
-        } else if (sourceDragMode === 'scale-tr') {
-          scaleDelta = (dx / baseW - dy / baseH) / 2;
-        } else if (sourceDragMode === 'scale-bl') {
-          scaleDelta = (-dx / baseW + dy / baseH) / 2;
-        }
-
-        const nextScale = Math.max(0.1, Math.min(4.0, Math.round((initialScale + scaleDelta) * 100) / 100));
-        setLocalWorkingImage({
-          ...dragInitialWorking,
-          scaleX: nextScale,
-          scaleY: nextScale,
-        });
-      }
-      return;
-    }
-
-    // TAB 3 & 4: Bridge Stroke Dragging Update
-    if (activeTool === 'bridge' && bridgeStart) {
-      setBridgeCurrent({ x: normX, y: normY });
-    }
-  };
-
-  const handleSheetMouseUp = (e: React.MouseEvent) => {
-    // TAB 1: End Source Framing Drag and commit to main state history
-    if (activeTab === 'source' && sourceDragMode !== 'none') {
-      if (localWorkingImage && onUpdateWorkingImage) {
-        const finalImg = localWorkingImage;
-        onUpdateWorkingImage(() => finalImg);
-      }
-      setSourceDragMode('none');
-      setDragStartMouse(null);
-      setDragInitialWorking(null);
-      setLocalWorkingImage(null);
-      return;
-    }
-
-    // TAB 3 & 4: Bridge Pen Stroke Commit
-    if (activeTool === 'bridge' && bridgeStart && targetLayerId && onApplyBridgeStroke) {
+    const handleWindowMouseMove = (e: MouseEvent) => {
       const rect = pageFrameRef.current?.getBoundingClientRect();
-      if (rect) {
-        const clientX = (e.clientX - rect.left) / zoom;
-        const clientY = (e.clientY - rect.top) / zoom;
-        const normX = Math.max(0, Math.min(1, clientX / printable.widthPx));
-        const normY = Math.max(0, Math.min(1, clientY / printable.heightPx));
+      if (!rect) return;
 
-        onApplyBridgeStroke(targetLayerId, bridgeStart.x, bridgeStart.y, normX, normY, bridgeWidthMm);
+      const clientX = (e.clientX - rect.left) / zoom;
+      const clientY = (e.clientY - rect.top) / zoom;
+      const normX = Math.max(0, Math.min(1, clientX / printable.widthPx));
+      const normY = Math.max(0, Math.min(1, clientY / printable.heightPx));
+
+      // TAB 1: Source Framing Drag Updates
+      if (activeTab === 'source' && sourceDragMode !== 'none' && dragStartMouse && dragInitialWorking && placedImageGeometry) {
+        const dx = clientX - dragStartMouse.x;
+        const dy = clientY - dragStartMouse.y;
+
+        if (sourceDragMode === 'move') {
+          setLocalWorkingImage({
+            ...dragInitialWorking,
+            position: {
+              x: Math.round(dragInitialWorking.position.x + dx),
+              y: Math.round(dragInitialWorking.position.y + dy),
+            },
+          });
+        } else if (sourceDragMode.startsWith('scale')) {
+          const { baseW, baseH } = placedImageGeometry;
+          const initScale = dragInitialWorking.scaleX;
+          const initW = baseW * initScale;
+          const initH = baseH * initScale;
+          const initCenterX = printable.widthPx / 2 + dragInitialWorking.position.x;
+          const initCenterY = printable.heightPx / 2 + dragInitialWorking.position.y;
+
+          // Compute fixed anchor corner (opposite to dragged handle)
+          let anchorX = initCenterX;
+          let anchorY = initCenterY;
+          let signX = 1;
+          let signY = 1;
+
+          if (sourceDragMode === 'scale-br') {
+            anchorX = initCenterX - initW / 2; // Fixed TL
+            anchorY = initCenterY - initH / 2;
+            signX = 1;
+            signY = 1;
+          } else if (sourceDragMode === 'scale-tl') {
+            anchorX = initCenterX + initW / 2; // Fixed BR
+            anchorY = initCenterY + initH / 2;
+            signX = -1;
+            signY = -1;
+          } else if (sourceDragMode === 'scale-tr') {
+            anchorX = initCenterX - initW / 2; // Fixed BL
+            anchorY = initCenterY + initH / 2;
+            signX = 1;
+            signY = -1;
+          } else if (sourceDragMode === 'scale-bl') {
+            anchorX = initCenterX + initW / 2; // Fixed TR
+            anchorY = initCenterY - initH / 2;
+            signX = -1;
+            signY = 1;
+          }
+
+          // Compute mouse displacement from fixed anchor
+          const distFromAnchorX = (clientX - anchorX) * signX;
+          const distFromAnchorY = (clientY - anchorY) * signY;
+
+          // Proportional aspect ratio scale calculation
+          const scaleRatioW = distFromAnchorX / baseW;
+          const scaleRatioH = distFromAnchorY / baseH;
+          const newScale = Math.max(0.05, Math.min(10.0, Math.round(Math.max(scaleRatioW, scaleRatioH) * 100) / 100));
+
+          const newW = baseW * newScale;
+          const newH = baseH * newScale;
+          const newCenterX = anchorX + (newW / 2) * signX;
+          const newCenterY = anchorY + (newH / 2) * signY;
+
+          const newPosX = newCenterX - printable.widthPx / 2;
+          const newPosY = newCenterY - printable.heightPx / 2;
+
+          setLocalWorkingImage({
+            ...dragInitialWorking,
+            scaleX: newScale,
+            scaleY: newScale,
+            position: {
+              x: Math.round(newPosX),
+              y: Math.round(newPosY),
+            },
+          });
+        }
+        return;
       }
-      setBridgeStart(null);
-      setBridgeCurrent(null);
-    }
-  };
+
+      // TAB 3 & 4: Bridge Stroke Dragging Update
+      if (activeTool === 'bridge' && bridgeStart) {
+        setBridgeCurrent({ x: normX, y: normY });
+      }
+    };
+
+    const handleWindowMouseUp = (e: MouseEvent) => {
+      // TAB 1: Commit Source Framing Drag
+      if (activeTab === 'source' && sourceDragMode !== 'none') {
+        if (localWorkingImage && onUpdateWorkingImage) {
+          const finalImg = localWorkingImage;
+          onUpdateWorkingImage(() => finalImg);
+        }
+        setSourceDragMode('none');
+        setDragStartMouse(null);
+        setDragInitialWorking(null);
+        setLocalWorkingImage(null);
+      }
+
+      // TAB 3 & 4: Bridge Pen Stroke Commit
+      if (activeTool === 'bridge' && bridgeStart && targetLayerId && onApplyBridgeStroke) {
+        const rect = pageFrameRef.current?.getBoundingClientRect();
+        if (rect) {
+          const clientX = (e.clientX - rect.left) / zoom;
+          const clientY = (e.clientY - rect.top) / zoom;
+          const normX = Math.max(0, Math.min(1, clientX / printable.widthPx));
+          const normY = Math.max(0, Math.min(1, clientY / printable.heightPx));
+
+          onApplyBridgeStroke(targetLayerId, bridgeStart.x, bridgeStart.y, normX, normY, bridgeWidthMm);
+        }
+        setBridgeStart(null);
+        setBridgeCurrent(null);
+      }
+    };
+
+    window.addEventListener('mousemove', handleWindowMouseMove);
+    window.addEventListener('mouseup', handleWindowMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      window.removeEventListener('mouseup', handleWindowMouseUp);
+    };
+  }, [
+    sourceDragMode,
+    bridgeStart,
+    activeTab,
+    activeTool,
+    dragStartMouse,
+    dragInitialWorking,
+    placedImageGeometry,
+    localWorkingImage,
+    onUpdateWorkingImage,
+    onApplyBridgeStroke,
+    targetLayerId,
+    bridgeWidthMm,
+    zoom,
+    printable,
+  ]);
 
   const resetView = () => {
     const fit = calculateFitZoom();
@@ -502,8 +569,6 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
         <div
           ref={pageFrameRef}
           onMouseDown={handleSheetMouseDown}
-          onMouseMove={handleSheetMouseMove}
-          onMouseUp={handleSheetMouseUp}
           onContextMenu={e => e.preventDefault()}
           className={`print-target-page transition-transform duration-75 ease-out shadow-2xl relative bg-sand-50 rounded-sm border border-sand-400/40 overflow-hidden shrink-0 ${
             activeTab === 'source'
