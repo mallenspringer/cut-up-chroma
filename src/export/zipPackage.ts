@@ -2,6 +2,13 @@ import { zipSync, strToU8 } from 'fflate';
 import { ChromaLayerState, CanvasSettings, VectorLayerResult } from '../engine/types';
 import { generateMasterCombinedSVG, generateSingleLayerSVG } from './svgGenerator';
 
+export interface ZipPackageOptions {
+  includeRegistrationMarks?: boolean;
+  solidBlack?: boolean;
+  mirrorHorizontal?: boolean;
+  strokeOnly?: boolean;
+}
+
 /**
  * Packages all cut sheets and master SVG into a downloadable ZIP archive using fflate
  */
@@ -10,12 +17,15 @@ export function createZipPackage(
   vectorResults: Map<string, VectorLayerResult>,
   canvas: CanvasSettings,
   prefix: string = 'CutUp_Chroma',
-  includeRegistrationMarks: boolean = false,
+  options: boolean | ZipPackageOptions = false,
   processingDimensions?: { width: number; height: number }
 ): Blob {
   const files: Record<string, Uint8Array> = {};
 
   const cleanPrefix = (prefix || 'CutUp_Chroma').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+  const opts: ZipPackageOptions = typeof options === 'boolean'
+    ? { includeRegistrationMarks: options }
+    : options;
 
   // 1. Master Combined Multi-Color SVG
   const masterSvg = generateMasterCombinedSVG(
@@ -23,8 +33,10 @@ export function createZipPackage(
     vectorResults,
     canvas,
     {
-      strokeOnly: false,
-      includeRegistrationMarks,
+      strokeOnly: opts.strokeOnly ?? false,
+      includeRegistrationMarks: opts.includeRegistrationMarks ?? false,
+      mirrorHorizontal: opts.mirrorHorizontal ?? false,
+      solidBlack: opts.solidBlack ?? false,
     },
     processingDimensions
   );
@@ -44,15 +56,18 @@ export function createZipPackage(
       vec,
       canvas,
       {
-        strokeOnly: true,
-        includeRegistrationMarks,
+        strokeOnly: opts.strokeOnly ?? (opts.solidBlack ? false : true),
+        includeRegistrationMarks: opts.includeRegistrationMarks ?? false,
+        mirrorHorizontal: opts.mirrorHorizontal ?? false,
+        solidBlack: opts.solidBlack ?? false,
       },
       processingDimensions
     );
 
     const sheetNum = String(idx + 1).padStart(2, '0');
     const colorLabel = layer.swatch.name.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const filename = `${sheetNum}_Layer_${colorLabel}_${layer.swatch.hex.replace('#', '')}.svg`;
+    const blackSuffix = opts.solidBlack ? '_FilmPositive_K100' : `_${layer.swatch.hex.replace('#', '')}`;
+    const filename = `${sheetNum}_Layer_${colorLabel}${blackSuffix}.svg`;
 
     files[filename] = strToU8(layerSvg);
   });
@@ -63,7 +78,7 @@ export function createZipPackage(
 Project Name: ${cleanPrefix}
 Sheet Dimensions: ${canvas.width} x ${canvas.height} ${canvas.unit}
 Total Color Layers: ${layers.length}
-Registration Marks: ${includeRegistrationMarks ? 'Included' : 'None'}
+Registration Marks: ${opts.includeRegistrationMarks ? 'Included' : 'None'}
 
 Layer Assembly Order (Z-Stack: 01 = Base Foundation -> Top Layer):
 --------------------------------------------------

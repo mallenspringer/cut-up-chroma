@@ -9,16 +9,14 @@ import {
   Download,
   FileArchive,
   Printer,
-  Layers,
   FileCode,
   Image as ImageIcon,
   Sparkles,
   Scissors,
-  Check,
-  Eye,
+  FlipHorizontal,
+  Contrast,
   Sliders,
-  SunMedium,
-  Palette
+  Check
 } from 'lucide-react';
 
 interface ExportModalProps {
@@ -45,6 +43,21 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     generateExportBaseName(sourceImage, canvas, layers.length)
   );
 
+  // Master Combined SVG Options
+  const [masterStrokeOnly, setMasterStrokeOnly] = useState(false);
+  const [masterMirror, setMasterMirror] = useState(false);
+  const [masterSolidBlack, setMasterSolidBlack] = useState(false);
+
+  // Layer Package (ZIP) Options
+  const [zipSolidBlack, setZipSolidBlack] = useState(false);
+  const [zipMirror, setZipMirror] = useState(false);
+  const [zipStrokeOnly, setZipStrokeOnly] = useState(false);
+
+  // Print Template Options
+  const [printShadows, setPrintShadows] = useState(true);
+  const [printTexture, setPrintTexture] = useState(true);
+  const [printMirror, setPrintMirror] = useState(false);
+
   // Digital Mockup Options
   const [includeShadows, setIncludeShadows] = useState(true);
   const [includePaperTexture, setIncludePaperTexture] = useState(true);
@@ -52,9 +65,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const [digitalFormat, setDigitalFormat] = useState<'png' | 'jpeg'>('png');
   const [dpiMultiplier, setDpiMultiplier] = useState<number>(3); // 3x = ~300 DPI
   const [isExportingMockup, setIsExportingMockup] = useState(false);
-
-  // Master SVG Stroke Only Toggle
-  const [masterStrokeOnly, setMasterStrokeOnly] = useState(false);
 
   if (!isOpen) return null;
 
@@ -76,6 +86,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       {
         strokeOnly: masterStrokeOnly,
         includeRegistrationMarks: registrationMarks,
+        mirrorHorizontal: masterMirror,
+        solidBlack: masterSolidBlack,
       },
       processingDims
     );
@@ -91,7 +103,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       vectorResults,
       canvas,
       baseName,
-      registrationMarks,
+      {
+        includeRegistrationMarks: registrationMarks,
+        solidBlack: zipSolidBlack,
+        mirrorHorizontal: zipMirror,
+        strokeOnly: zipStrokeOnly,
+      },
       processingDims
     );
     const filename = getExportFilename(baseName, 'layer_package_zip');
@@ -129,7 +146,63 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   };
 
   const handlePrint = () => {
-    window.print();
+    const processingDims = getProcessingDimensions();
+    const svgStr = generateMasterCombinedSVG(
+      layers,
+      vectorResults,
+      canvas,
+      {
+        strokeOnly: false,
+        includeRegistrationMarks: registrationMarks,
+        mirrorHorizontal: printMirror,
+      },
+      processingDims
+    );
+
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      window.print();
+      return;
+    }
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${baseName} - 1:1 Print Template</title>
+          <style>
+            @page {
+              size: ${canvas.width}${canvas.unit} ${canvas.height}${canvas.unit};
+              margin: 0;
+            }
+            body {
+              margin: 0;
+              padding: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: #ffffff;
+            }
+            svg {
+              width: ${canvas.width}${canvas.unit};
+              height: ${canvas.height}${canvas.unit};
+              display: block;
+              ${printShadows ? 'filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));' : ''}
+            }
+          </style>
+        </head>
+        <body>
+          ${svgStr}
+          <script>
+            window.onload = function() {
+              window.print();
+              window.onafterprint = function() { window.close(); };
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
   };
 
   return (
@@ -202,83 +275,153 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           {/* TAB 1: PHYSICAL FABRICATION */}
           {activeTab === 'fabrication' && (
             <div className="space-y-4">
-              {/* Option A: Layer-by-Layer Production Package (ZIP) */}
-              <div className="p-4 rounded-lg bg-moss-950/70 border border-emerald-500/30 hover:border-emerald-500/50 transition flex flex-col justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-sand-100 font-semibold text-xs">
-                    <FileArchive className="w-4 h-4 text-emerald-400" />
-                    <span>Layer-by-Layer Production Package (.zip)</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700/50 font-mono">
-                      Recommended
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-sand-400 leading-relaxed">
-                    Complete manufacturing bundle with individual 1:1 scale SVG cut sheets for each color layer,
-                    a Master Combined SVG, and a fabrication README. Ideal for laser cutting, Cricut/Silhouette,
-                    and screenprint positive separations.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleDownloadZip}
-                  className="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium flex items-center justify-center gap-2 shadow-md transition"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Download Layer-by-Layer ZIP ({layers.length} Sheets)</span>
-                </button>
-              </div>
-
-              {/* Option B: Master Combined Multi-Color SVG */}
-              <div className="p-4 rounded-lg bg-moss-950/70 border border-sand-400/20 flex flex-col justify-between gap-3">
-                <div className="space-y-1">
+              {/* 1. TOP & DEFAULT: Master Combined Multi-Color SVG */}
+              <div className="p-4 rounded-lg bg-moss-950/70 border border-emerald-500/35 hover:border-emerald-500/55 transition flex flex-col justify-between gap-3 shadow-sm">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-sand-100 font-semibold text-xs">
-                      <FileCode className="w-4 h-4 text-amber-400" />
+                      <FileCode className="w-4 h-4 text-emerald-400" />
                       <span>Master Combined Multi-Color SVG</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700/50 font-mono">
+                        Default / Recommended
+                      </span>
                     </div>
-                    <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-sand-300">
+                  </div>
+                  <p className="text-[11px] text-sand-400 leading-relaxed">
+                    Single unit-accurate multi-layer vector file. Ideal for direct drag-and-drop into cutting machines (Cricut Design Space, Silhouette Studio, Glowforge, LightBurn) and vector editors (Illustrator, Inkscape).
+                  </p>
+
+                  {/* Checkbox Options */}
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-sand-400/10">
+                    <label className="flex items-center gap-2 cursor-pointer text-[11px] text-sand-300 p-1.5 rounded bg-moss-900/60 border border-sand-400/15">
                       <input
                         type="checkbox"
                         checked={masterStrokeOnly}
                         onChange={e => setMasterStrokeOnly(e.target.checked)}
-                        className="w-3.5 h-3.5 accent-amber-500 rounded"
+                        className="w-3.5 h-3.5 accent-emerald-500 rounded"
                       />
                       <span>Stroke Cut Lines Only</span>
                     </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer text-[11px] text-sand-300 p-1.5 rounded bg-moss-900/60 border border-sand-400/15">
+                      <input
+                        type="checkbox"
+                        checked={masterMirror}
+                        onChange={e => setMasterMirror(e.target.checked)}
+                        className="w-3.5 h-3.5 accent-emerald-500 rounded"
+                      />
+                      <span>Mirror (Plates / HTV Vinyl)</span>
+                    </label>
                   </div>
-                  <p className="text-[11px] text-sand-400 leading-relaxed">
-                    A single unit-accurate SVG with color-coded vector paths grouped into Inkscape/Illustrator layers.
-                    Supports direct loading into Glowforge, LightBurn, or CAD tools.
-                  </p>
                 </div>
+
                 <button
                   type="button"
                   onClick={handleDownloadMasterSVG}
-                  className="w-full py-2 px-3 rounded-lg bg-moss-800 hover:bg-moss-750 text-sand-100 font-medium border border-sand-400/30 flex items-center justify-center gap-2 transition"
+                  className="w-full py-2.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium flex items-center justify-center gap-2 shadow-md transition"
                 >
-                  <Download className="w-4 h-4 text-sand-300" />
+                  <Download className="w-4 h-4" />
                   <span>Download Master Combined SVG</span>
                 </button>
               </div>
 
-              {/* Option C: 1:1 Scale Print Template */}
-              <div className="p-4 rounded-lg bg-moss-950/70 border border-sand-400/20 flex items-center justify-between gap-3">
-                <div className="space-y-0.5">
+              {/* 2. Layer-by-Layer Production Package (ZIP) */}
+              <div className="p-4 rounded-lg bg-moss-950/70 border border-sand-400/20 flex flex-col justify-between gap-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 text-sand-100 font-semibold text-xs">
+                    <FileArchive className="w-4 h-4 text-amber-400" />
+                    <span>Layer-by-Layer Production Package (.zip)</span>
+                  </div>
+                  <p className="text-[11px] text-sand-400 leading-relaxed">
+                    Includes individual 1:1 scale SVG files for each layer sheet, Master Combined SVG, and an assembly README. Versatile for batch CNC cutting, laser stations, and screenprint film separations.
+                  </p>
+
+                  {/* Printmaking & Cutting Checkboxes */}
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-sand-400/10">
+                    <label className="flex items-center gap-2 cursor-pointer text-[11px] text-sand-300 p-1.5 rounded bg-moss-900/60 border border-sand-400/15">
+                      <input
+                        type="checkbox"
+                        checked={zipSolidBlack}
+                        onChange={e => setZipSolidBlack(e.target.checked)}
+                        className="w-3.5 h-3.5 accent-amber-400 rounded"
+                      />
+                      <span>Solid Black Film Positives</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer text-[11px] text-sand-300 p-1.5 rounded bg-moss-900/60 border border-sand-400/15">
+                      <input
+                        type="checkbox"
+                        checked={zipMirror}
+                        onChange={e => setZipMirror(e.target.checked)}
+                        className="w-3.5 h-3.5 accent-amber-400 rounded"
+                      />
+                      <span>Mirror (Plates / HTV Vinyl)</span>
+                    </label>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadZip}
+                  className="w-full py-2 px-3 rounded-lg bg-moss-800 hover:bg-moss-750 text-sand-100 font-medium border border-sand-400/30 flex items-center justify-center gap-2 transition"
+                >
+                  <Download className="w-4 h-4 text-sand-300" />
+                  <span>Download Layer-by-Layer ZIP ({layers.length} Sheets)</span>
+                </button>
+              </div>
+
+              {/* 3. 1:1 Scale Print / PDF Template */}
+              <div className="p-4 rounded-lg bg-moss-950/70 border border-sand-400/20 flex flex-col justify-between gap-3">
+                <div className="space-y-1.5">
                   <div className="flex items-center gap-2 text-sand-100 font-semibold text-xs">
                     <Printer className="w-4 h-4 text-sky-400" />
-                    <span>Direct 1:1 Scale Print / PDF</span>
+                    <span>Direct 1:1 Scale Print / PDF Template</span>
                   </div>
                   <p className="text-[11px] text-sand-400">
-                    Prints current viewport to your local printer or PDF at exact physical dimensions.
+                    Prints current composite artwork to your local printer or PDF at exact 100% real-world dimensions.
                   </p>
+
+                  {/* Print Template Toggles */}
+                  <div className="grid grid-cols-3 gap-2 pt-1 border-t border-sand-400/10">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] text-sand-300 p-1.5 rounded bg-moss-900/60 border border-sand-400/15">
+                      <input
+                        type="checkbox"
+                        checked={printShadows}
+                        onChange={e => setPrintShadows(e.target.checked)}
+                        className="w-3.5 h-3.5 accent-sky-400 rounded"
+                      />
+                      <span>Drop Shadows</span>
+                    </label>
+
+                    <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] text-sand-300 p-1.5 rounded bg-moss-900/60 border border-sand-400/15">
+                      <input
+                        type="checkbox"
+                        checked={printTexture}
+                        onChange={e => setPrintTexture(e.target.checked)}
+                        className="w-3.5 h-3.5 accent-sky-400 rounded"
+                      />
+                      <span>Paper Texture</span>
+                    </label>
+
+                    <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] text-sand-300 p-1.5 rounded bg-moss-900/60 border border-sand-400/15">
+                      <input
+                        type="checkbox"
+                        checked={printMirror}
+                        onChange={e => setPrintMirror(e.target.checked)}
+                        className="w-3.5 h-3.5 accent-sky-400 rounded"
+                      />
+                      <span>Mirror (Plates)</span>
+                    </label>
+                  </div>
                 </div>
+
                 <button
                   type="button"
                   onClick={handlePrint}
-                  className="py-2 px-4 rounded-lg bg-moss-800 hover:bg-moss-750 text-sand-100 font-medium border border-sand-400/30 flex items-center gap-1.5 transition shrink-0"
+                  className="w-full py-2 px-4 rounded-lg bg-moss-800 hover:bg-moss-750 text-sand-100 font-medium border border-sand-400/30 flex items-center justify-center gap-1.5 transition"
                 >
                   <Printer className="w-3.5 h-3.5 text-sand-300" />
-                  <span>Print Template</span>
+                  <span>Open 1:1 Scale Print Dialog</span>
                 </button>
               </div>
             </div>
@@ -332,9 +475,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                     />
                   </label>
 
-                  {/* Format & Resolution */}
+                  {/* Format & Quality */}
                   <div className="flex items-center justify-between p-2 rounded bg-moss-900 border border-sand-400/15">
-                    <span className="text-[11px] text-sand-300">Format & Quality</span>
+                    <span className="text-[11px] text-sand-300">Format</span>
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
