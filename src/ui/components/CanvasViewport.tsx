@@ -595,24 +595,28 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
                   <img
                     src={sourceImage.dataUrl}
                     alt="Source Input"
-                    className="absolute pointer-events-none select-none"
+                    className="absolute pointer-events-none select-none max-w-none max-h-none"
                     style={{
                       left: `${placedImageGeometry.left}px`,
                       top: `${placedImageGeometry.top}px`,
                       width: `${placedImageGeometry.width}px`,
                       height: `${placedImageGeometry.height}px`,
+                      maxWidth: 'none',
+                      maxHeight: 'none',
                       objectFit: 'fill',
                     }}
                   />
 
                   {/* Interactive Transform Bounding Box with Corner & Edge Handles */}
                   <div
-                    className="absolute border-2 border-emerald-400/80 shadow-sm pointer-events-none z-30"
+                    className="absolute border-2 border-emerald-400/80 shadow-sm pointer-events-none z-30 max-w-none max-h-none"
                     style={{
                       left: `${placedImageGeometry.left}px`,
                       top: `${placedImageGeometry.top}px`,
                       width: `${placedImageGeometry.width}px`,
                       height: `${placedImageGeometry.height}px`,
+                      maxWidth: 'none',
+                      maxHeight: 'none',
                     }}
                   >
                     {/* Center Move Anchor Crosshair */}
