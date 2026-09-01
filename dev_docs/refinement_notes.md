@@ -1,8 +1,8 @@
-- Remove redundancy in export
-- refine autonaming in export
-- Consider adding cut view, screen real estate allowing
-- add wand and bridge popup to composite view
-- let's do a careful audit and best practices review of the registration mark system. Make sure it's useful for some of the use cases link printmaking
+- [x] Remove redundancy in export
+- [x] Refine autonaming in export (0-indexed clean filenames)
+- [x] Add wand and bridge popup HUD to composite 3D view with layer target selector & live line preview
+- [x] Registration mark system audit: Concentric dual-circle bullseyes, 3-point pin-register marks, margin crop ticks, and live viewport preview
+- [x] Omit cut-view tab (low utility in real-world workflows)
 
 Toolbar Styling & UX(slider functionality tweaks in separate section)
 - clearance and filters: 
