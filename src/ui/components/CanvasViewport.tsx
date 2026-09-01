@@ -347,14 +347,18 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
             signY = 1;
           }
 
-          // Compute mouse displacement from fixed anchor
-          const distFromAnchorX = (clientX - anchorX) * signX;
-          const distFromAnchorY = (clientY - anchorY) * signY;
+          // Vector from fixed anchor along handle diagonal
+          const diagVecX = baseW * signX;
+          const diagVecY = baseH * signY;
+          const diagLenSq = diagVecX * diagVecX + diagVecY * diagVecY;
 
-          // Proportional aspect ratio scale calculation
-          const scaleRatioW = distFromAnchorX / baseW;
-          const scaleRatioH = distFromAnchorY / baseH;
-          const newScale = Math.max(0.05, Math.min(10.0, Math.round(Math.max(scaleRatioW, scaleRatioH) * 100) / 100));
+          // Mouse vector from fixed anchor
+          const mouseVecX = clientX - anchorX;
+          const mouseVecY = clientY - anchorY;
+
+          // Project mouse vector onto diagonal to determine exact proportional scale
+          const dot = mouseVecX * diagVecX + mouseVecY * diagVecY;
+          const newScale = Math.max(0.05, Math.min(10.0, Math.round((dot / diagLenSq) * 100) / 100));
 
           const newW = baseW * newScale;
           const newH = baseH * newScale;
