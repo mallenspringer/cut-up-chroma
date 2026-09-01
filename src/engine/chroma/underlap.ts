@@ -54,7 +54,8 @@ export function generatePhysicalLayerMasks(
   assemblyMode: AssemblyMode,
   pxPerMm: number,
   globalUnderlapBleedMm: number = 0.5,
-  alpha?: Uint8Array | null
+  alpha?: Uint8Array | null,
+  unionMarginBorders: boolean = true
 ): {
   finalMasks: BinaryMask[];
   underlapOverlays: BinaryMask[];
@@ -68,14 +69,24 @@ export function generatePhysicalLayerMasks(
   const totalPixels = width * height;
 
   if (assemblyMode === 'inlay_mosaic') {
+    // Inlay Mode: discrete non-overlapping flat tiles with optional inter-piece tolerance gap
     const finalMasks: BinaryMask[] = [];
     const underlapOverlays: BinaryMask[] = [];
+
     for (let i = 0; i < numLayers; i++) {
+      const raw = rawMasks[i];
+      if (!raw?.data) {
+        finalMasks.push({ width, height, data: new Uint8Array(totalPixels) });
+        underlapOverlays.push({ width, height, data: new Uint8Array(totalPixels) });
+        continue;
+      }
+
       finalMasks.push({
         width,
         height,
-        data: new Uint8Array(rawMasks[i].data),
+        data: new Uint8Array(raw.data),
       });
+
       underlapOverlays.push({
         width,
         height,
@@ -86,7 +97,9 @@ export function generatePhysicalLayerMasks(
     return { finalMasks, underlapOverlays };
   }
 
-  // Mode A: Stacked Relief
+  // --------------------------------------------------------------------------
+  // Stacked Relief Mode: Layer 0 Foundation Base + Layer Cutout Frames
+  // --------------------------------------------------------------------------
   const validLayers = layers.slice(0, numLayers);
   const sortedIndices = validLayers
     .map((l, index) => ({
@@ -140,7 +153,16 @@ export function generatePhysicalLayerMasks(
     if (z === 0) {
       if (isSolidBacking) {
         const solidData = new Uint8Array(totalPixels);
-        solidData.fill(1); // 100% solid paper cardstock base
+        if (unionMarginBorders) {
+          solidData.fill(1); // 100% solid paper cardstock base spanning full sheet
+        } else {
+          // Trim to artwork: fill 1 only where image content exists
+          for (let i = 0; i < totalPixels; i++) {
+            if (!alpha || alpha[i] >= 128) {
+              solidData[i] = 1;
+            }
+          }
+        }
         finalMasks[originalIdx] = { width, height, data: solidData };
       } else {
         const voidData = new Uint8Array(totalPixels);
@@ -154,10 +176,10 @@ export function generatePhysicalLayerMasks(
     const overlayData = new Uint8Array(totalPixels);
 
     if (z === sortedIndices.length - 1 || bleed <= 0) {
-      // Top layer or zero bleed: Combine raw mask + margin positive space
+      // Top layer or zero bleed: Combine raw mask + optional margin positive space
       for (let i = 0; i < totalPixels; i++) {
-        if (alpha && alpha[i] < 128) {
-          // Margin / extra-image space is solid paper (1) unioned into the sheet
+        if (unionMarginBorders && alpha && alpha[i] < 128) {
+          // Margin space is solid paper (1) unioned into the sheet
           outData[i] = 1;
         } else if (rawData[i] === 1) {
           outData[i] = 1;
@@ -173,12 +195,13 @@ export function generatePhysicalLayerMasks(
     const upperMask = upperUnions[z] || new Uint8Array(totalPixels);
 
     for (let i = 0; i < totalPixels; i++) {
-      if (alpha && alpha[i] < 128) {
-        // Margin / extra-image space is solid paper (1) unioned into the sheet
+      if (unionMarginBorders && alpha && alpha[i] < 128) {
+        // Margin space is solid paper (1) unioned into the sheet
         outData[i] = 1;
       } else if (rawData[i] === 1) {
         outData[i] = 1;
       } else if (dilated.data[i] === 1 && upperMask[i] === 1) {
+        // Dilation underlap beneath upper layers
         outData[i] = 1;
         overlayData[i] = 1;
       }

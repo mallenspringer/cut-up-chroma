@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChromaLayerState, CanvasSettings, VectorLayerResult, AppState, SourceImage } from '../../engine/types';
+import { ChromaLayerState, CanvasSettings, VectorLayerResult, AppState, SourceImage, ChromaProcessingSettings } from '../../engine/types';
 import { Download, Target, Printer, Layers } from 'lucide-react';
 import { CollapsibleSection } from './CollapsibleSection';
 import { ExportModal } from './ExportModal';
@@ -9,6 +9,7 @@ interface ExportPanelProps {
   vectorResults: Map<string, VectorLayerResult>;
   canvas: CanvasSettings;
   output: AppState['output'];
+  processing: ChromaProcessingSettings;
   sourceImage?: SourceImage | null;
   onUpdateState: (updater: (prev: AppState) => AppState) => void;
   defaultOpen?: boolean;
@@ -19,6 +20,7 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
   vectorResults,
   canvas,
   output,
+  processing,
   sourceImage = null,
   onUpdateState,
   defaultOpen = true,
@@ -73,6 +75,13 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
         canvas={canvas}
         sourceImage={sourceImage}
         registrationMarks={output.registrationMarks}
+        unionMarginBorders={processing.unionMarginBorders !== false}
+        onToggleUnionMarginBorders={enabled =>
+          onUpdateState(prev => ({
+            ...prev,
+            processing: { ...prev.processing, unionMarginBorders: enabled },
+          }))
+        }
       />
     </CollapsibleSection>
   );

@@ -72,6 +72,7 @@ const INITIAL_PROCESSING: ChromaProcessingSettings = {
   smoothing: 15,
   underlapBleedMm: 0.5,
   inlayToleranceMm: 0.1,
+  unionMarginBorders: true,
 };
 
 const ROYGBIV_COLORS = [
@@ -499,9 +500,10 @@ export const App: React.FC = () => {
       throttledProcessing.assemblyMode,
       printable.pxPerMm,
       throttledProcessing.underlapBleedMm,
-      precomputedOklch?.alpha
+      precomputedOklch?.alpha,
+      throttledProcessing.unionMarginBorders !== false
     );
-  }, [classification.layerMasks, throttledLayers, throttledProcessing.assemblyMode, throttledProcessing.underlapBleedMm, precomputedOklch?.alpha, state.canvas]);
+  }, [classification.layerMasks, throttledLayers, throttledProcessing.assemblyMode, throttledProcessing.underlapBleedMm, throttledProcessing.unionMarginBorders, precomputedOklch?.alpha, state.canvas]);
 
   // Throttled surface texture config to provide 220ms mid-drag refresh and instant settle
   const throttledSurfaceTexture = useThrottledValue(state.surfaceTexture, 220);
@@ -887,6 +889,7 @@ export const App: React.FC = () => {
             canvas={state.canvas}
             sourceImage={state.sourceImage}
             output={state.output}
+            processing={state.processing}
             onUpdateState={updateState}
           />
         </aside>

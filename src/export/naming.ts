@@ -50,9 +50,12 @@ export function getExportFilename(
     case 'screenprint_svg':
       return `${baseName}_2D_Screenprint_Poster.svg`;
     case 'single_layer_svg': {
-      const idxStr = String((layerIndex ?? 0) + 1).padStart(2, '0');
-      const cleanLayer = (layerName || 'Layer').replace(/[^a-zA-Z0-9_-]/g, '_');
-      return `${idxStr}_${cleanLayer}.svg`;
+      const idx = layerIndex ?? 0;
+      const idxStr = String(idx).padStart(2, '0');
+      const isBase = idx === 0;
+      const hexClean = (layerName || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      const hexPart = hexClean ? `_${hexClean}` : '';
+      return isBase ? `${idxStr}_Layer_Base${hexPart}.svg` : `${idxStr}_Layer${hexPart}.svg`;
     }
   }
 }

@@ -110,6 +110,7 @@ export interface ChromaProcessingSettings {
   smoothing: number; // 0 to 100
   underlapBleedMm: number; // 0.0 to 1.5mm (default: 0.5mm)
   inlayToleranceMm: number; // 0.0 to 0.5mm
+  unionMarginBorders?: boolean; // default: true (unions outer cardstock margin into solid frame)
 }
 
 export type AestheticFilterType = 'none' | 'pixelate' | 'voronoi';

@@ -27,6 +27,8 @@ interface ExportModalProps {
   canvas: CanvasSettings;
   sourceImage?: SourceImage | null;
   registrationMarks?: boolean;
+  unionMarginBorders?: boolean;
+  onToggleUnionMarginBorders?: (enabled: boolean) => void;
 }
 
 export const ExportModal: React.FC<ExportModalProps> = ({
@@ -37,6 +39,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   canvas,
   sourceImage = null,
   registrationMarks = false,
+  unionMarginBorders = true,
+  onToggleUnionMarginBorders,
 }) => {
   const [activeTab, setActiveTab] = useState<'fabrication' | 'digital'>('fabrication');
   const [projectName, setProjectName] = useState(() =>
@@ -254,22 +258,57 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 space-y-5 overflow-y-auto text-xs text-sand-200">
-          {/* Project Filename Base */}
-          <div className="space-y-1.5 p-3 rounded-lg bg-moss-950/50 border border-sand-400/15">
-            <label className="text-[11px] uppercase font-gorton text-sand-300 font-medium flex justify-between">
-              <span>Project Filename Base</span>
-              <span className="text-[10px] text-sand-400 font-normal">
-                {canvas.width}×{canvas.height} {canvas.unit} • {layers.length} Layers
-              </span>
-            </label>
-            <input
-              type="text"
-              value={projectName}
-              onChange={e => setProjectName(e.target.value)}
-              className="w-full bg-moss-900 border border-sand-400/25 rounded px-3 py-1.5 text-xs text-sand-100 focus:border-emerald-400 outline-none font-mono"
-              placeholder="Project_Name"
-            />
+        <div className="p-5 space-y-4 overflow-y-auto text-xs text-sand-200">
+          {/* Project Filename Base & Margin Framing Switcher */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Filename Input */}
+            <div className="space-y-1.5 p-2.5 rounded-lg bg-moss-950/50 border border-sand-400/15">
+              <label className="text-[11px] uppercase font-gorton text-sand-300 font-medium flex justify-between">
+                <span>Filename Prefix</span>
+                <span className="text-[10px] text-sand-400 font-normal">{layers.length} Layers</span>
+              </label>
+              <input
+                type="text"
+                value={projectName}
+                onChange={e => setProjectName(e.target.value)}
+                className="w-full bg-moss-900 border border-sand-400/25 rounded px-2.5 py-1 text-xs text-sand-100 focus:border-emerald-400 outline-none font-mono"
+                placeholder="Project_Name"
+              />
+            </div>
+
+            {/* Margin Framing Mode */}
+            <div className="space-y-1.5 p-2.5 rounded-lg bg-moss-950/50 border border-sand-400/15">
+              <label className="text-[11px] uppercase font-gorton text-sand-300 font-medium flex justify-between">
+                <span>Margin Framing</span>
+                <span className="text-[10px] text-sand-400 font-normal">
+                  {unionMarginBorders !== false ? 'Framed' : 'Trimmed'}
+                </span>
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => onToggleUnionMarginBorders?.(true)}
+                  className={`py-1 px-1.5 rounded border text-center text-[10.5px] transition ${
+                    unionMarginBorders !== false
+                      ? 'border-emerald-400 bg-moss-800 text-white font-semibold'
+                      : 'border-sand-400/20 text-sand-400 hover:border-sand-400/40'
+                  }`}
+                >
+                  Framed Sheet
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onToggleUnionMarginBorders?.(false)}
+                  className={`py-1 px-1.5 rounded border text-center text-[10.5px] transition ${
+                    unionMarginBorders === false
+                      ? 'border-emerald-400 bg-moss-800 text-white font-semibold'
+                      : 'border-sand-400/20 text-sand-400 hover:border-sand-400/40'
+                  }`}
+                >
+                  Trim to Art
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* TAB 1: PHYSICAL FABRICATION */}

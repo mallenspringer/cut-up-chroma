@@ -33,8 +33,8 @@ describe('Export Naming Engine', () => {
     expect(getExportFilename(base, 'layer_package_zip')).toBe('Botanical_8.5x11in_4Colors_Production_Package.zip');
     expect(getExportFilename(base, 'mockup_png')).toBe('Botanical_8.5x11in_4Colors_3D_Mockup.png');
     expect(getExportFilename(base, 'mockup_jpg')).toBe('Botanical_8.5x11in_4Colors_3D_Mockup.jpg');
-    expect(getExportFilename(base, 'single_layer_svg', 0, 'Base Shadow')).toBe('01_Base_Shadow.svg');
-    expect(getExportFilename(base, 'single_layer_svg', 2, 'Forest Green')).toBe('03_Forest_Green.svg');
+    expect(getExportFilename(base, 'single_layer_svg', 0, '#000000')).toBe('00_Layer_Base_000000.svg');
+    expect(getExportFilename(base, 'single_layer_svg', 2, '#839A84')).toBe('02_Layer_839A84.svg');
   });
 
   it('should support custom project name prefix override', () => {

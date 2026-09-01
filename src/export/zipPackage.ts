@@ -64,10 +64,10 @@ export function createZipPackage(
       processingDimensions
     );
 
-    const sheetNum = String(idx + 1).padStart(2, '0');
-    const colorLabel = layer.swatch.name.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const blackSuffix = opts.solidBlack ? '_FilmPositive_K100' : `_${layer.swatch.hex.replace('#', '')}`;
-    const filename = `${sheetNum}_Layer_${colorLabel}${blackSuffix}.svg`;
+    const sheetNum = String(idx).padStart(2, '0');
+    const hexClean = layer.swatch.hex.replace('#', '').toUpperCase();
+    const blackSuffix = opts.solidBlack ? '_FilmPositive_K100' : `_${hexClean}`;
+    const filename = isLayer0 ? `${sheetNum}_Layer_Base${blackSuffix}.svg` : `${sheetNum}_Layer${blackSuffix}.svg`;
 
     files[filename] = strToU8(layerSvg);
   });
@@ -80,12 +80,12 @@ Sheet Dimensions: ${canvas.width} x ${canvas.height} ${canvas.unit}
 Total Color Layers: ${layers.length}
 Registration Marks: ${opts.includeRegistrationMarks ? 'Included' : 'None'}
 
-Layer Assembly Order (Z-Stack: 01 = Base Foundation -> Top Layer):
+Layer Assembly Order (Z-Stack: 00 = Base Foundation -> Top Layer):
 --------------------------------------------------
-${sortedLayers.map((l, i) => `${String(i + 1).padStart(2, '0')}. ${l.swatch.name} (${l.swatch.hex}) - ${l.isSolidBacking ? '[Solid Foundation Base]' : 'Layer'}`).join('\n')}
+${sortedLayers.map((l, i) => `${String(i).padStart(2, '0')}. Layer ${i}${i === 0 ? ' (Base Foundation)' : ''} (${l.swatch.hex}) - ${l.isSolidBacking ? '[Solid Foundation Base]' : 'Cutout Sheet'}`).join('\n')}
 
 Production & Fabrication Notes:
-- Physical Cutting (Laser / Cricut / Silhouette): Import individual SVG files at 1:1 scale (${canvas.width}x${canvas.height}${canvas.unit}). Assemble sequentially from 01 to ${String(layers.length).padStart(2, '0')}.
+- Physical Cutting (Laser / Cricut / Silhouette): Import individual SVG files at 1:1 scale (${canvas.width}x${canvas.height}${canvas.unit}). Assemble sequentially from 00 up to ${String(layers.length - 1).padStart(2, '0')}.
 - Screen Printing & Risograph: Use individual SVG separation sheets as film positives / stencils.
 `;
 
