@@ -749,6 +749,29 @@ export const App: React.FC = () => {
             activeTab={activeTab}
             onTabChange={setActiveTab}
             sourceImage={state.sourceImage}
+            workingImage={state.workingImage}
+            onUpdateWorkingImage={updater => updateState(prev => ({ ...prev, workingImage: updater(prev.workingImage) }))}
+            onResetWorkingImage={() => {
+              if (!state.sourceImage) return;
+              updateState(prev => ({
+                ...prev,
+                workingImage: {
+                  ...prev.workingImage,
+                  crop: {
+                    type: 'rectangle',
+                    geometry: {
+                      x: 0,
+                      y: 0,
+                      width: state.sourceImage?.width || 800,
+                      height: state.sourceImage?.height || 600,
+                    },
+                  },
+                  position: { x: 0, y: 0 },
+                  scaleX: 1.0,
+                  scaleY: 1.0,
+                },
+              }));
+            }}
             quantizedImageData={classification.quantizedImageData}
             layers={state.layers}
             selectedLayerId={state.selectedLayerId}
