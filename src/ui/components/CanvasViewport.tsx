@@ -771,21 +771,31 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
             <div className="w-full h-full relative overflow-hidden bg-moss-900/10">
               {sourceToolMode === 'transform' && sourceImage?.dataUrl && placedImageGeometry && (
                 <>
-                  {/* Positioned and Scaled Cropped Source Image */}
-                  <img
-                    src={sourceImage.dataUrl}
-                    alt="Source Input"
-                    className="absolute pointer-events-none select-none max-w-none max-h-none"
+                  {/* Positioned and Scaled Cropped Source Image (Clipped to Crop Boundaries) */}
+                  <div
+                    className="absolute pointer-events-none select-none overflow-hidden max-w-none max-h-none"
                     style={{
                       left: `${placedImageGeometry.left}px`,
                       top: `${placedImageGeometry.top}px`,
                       width: `${placedImageGeometry.width}px`,
                       height: `${placedImageGeometry.height}px`,
-                      maxWidth: 'none',
-                      maxHeight: 'none',
-                      objectFit: 'fill',
                     }}
-                  />
+                  >
+                    <img
+                      src={sourceImage.dataUrl}
+                      alt="Source Input"
+                      className="absolute pointer-events-none select-none max-w-none max-h-none"
+                      style={{
+                        width: `${(placedImageGeometry.srcW / placedImageGeometry.cropW) * placedImageGeometry.width}px`,
+                        height: `${(placedImageGeometry.srcH / placedImageGeometry.cropH) * placedImageGeometry.height}px`,
+                        left: `${-(placedImageGeometry.cropX / placedImageGeometry.cropW) * placedImageGeometry.width}px`,
+                        top: `${-(placedImageGeometry.cropY / placedImageGeometry.cropH) * placedImageGeometry.height}px`,
+                        maxWidth: 'none',
+                        maxHeight: 'none',
+                        objectFit: 'fill',
+                      }}
+                    />
+                  </div>
 
                   {/* Interactive Transform Bounding Box with Corner Handles */}
                   <div
