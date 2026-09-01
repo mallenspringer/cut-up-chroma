@@ -41,7 +41,7 @@ export async function exportDigitalMockup(
 
     const isSolid = isBase && layer.isSolidBacking !== false;
     const vec = vectorResults.get(layer.id);
-    const pathData = isSolid ? `M 0 0 H ${viewW} V ${viewH} H 0 Z` : (vec?.pathData || '');
+    const pathData = vec?.pathData || (isSolid ? `M 0 0 H ${viewW} V ${viewH} H 0 Z` : '');
     if (!pathData) return '';
 
     const shadowFilter = options.includeShadows && layer.order > 0

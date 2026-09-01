@@ -40,19 +40,19 @@ export function generateMasterCombinedSVG(
 
     const isSolid = isLayer0 && layer.isSolidBacking !== false;
     const vec = vectorResults.get(layer.id);
-    const pathData = isSolid ? `M 0 0 H ${viewW} V ${viewH} H 0 Z` : (vec?.pathData || '');
+    const pathData = vec?.pathData || (isSolid ? `M 0 0 H ${viewW} V ${viewH} H 0 Z` : '');
     if (!pathData) return '';
 
-    const sanitizedName = layer.swatch.name.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const groupId = `layer_${String(index + 1).padStart(2, '0')}_${sanitizedName}`;
+    const groupId = `layer_${String(index).padStart(2, '0')}_${index === 0 ? 'Base' : 'Layer'}`;
 
     const fillColor = options.solidBlack ? '#000000' : layer.swatch.hex;
+    const layerStrokeColor = options.strokeColor || (options.solidBlack ? '#000000' : layer.swatch.hex);
     const fillAttr = isStrokeOnly ? 'none' : fillColor;
-    const strokeAttr = isStrokeOnly ? strokeColor : 'none';
+    const strokeAttr = isStrokeOnly ? layerStrokeColor : 'none';
     const strokeWidthAttr = isStrokeOnly ? `stroke-width="${strokeWidth}"` : '';
 
-    return `  <!-- Layer ${index + 1}: ${layer.swatch.name} (${layer.swatch.hex}) -->
-  <g id="${groupId}" inkscape:label="${layer.swatch.name}" inkscape:groupmode="layer">
+    return `  <!-- Layer ${index}${index === 0 ? ' (Base Foundation)' : ''}: ${layer.swatch.hex} -->
+  <g id="${groupId}" inkscape:label="${index === 0 ? 'Base Foundation' : `Layer ${index}`}" inkscape:groupmode="layer">
     <path
       d="${pathData}"
       fill="${fillAttr}"
@@ -106,7 +106,7 @@ export function generateSingleLayerSVG(
   }
 
   const isSolid = isLayer0 && layer.isSolidBacking !== false;
-  const pathData = isSolid ? `M 0 0 H ${viewW} V ${viewH} H 0 Z` : (vectorResult?.pathData || '');
+  const pathData = vectorResult?.pathData || (isSolid ? `M 0 0 H ${viewW} V ${viewH} H 0 Z` : '');
 
   const isStrokeOnly = options.strokeOnly !== false;
   const strokeColor = options.strokeColor || '#000000';

@@ -309,6 +309,47 @@ describe('Chroma Classification & Underlap Dilation', () => {
     }
   });
 
+  it('should support Trim to Artwork mode (unionMarginBorders = false) with empty negative margins', () => {
+    const width = 4;
+    const height = 4;
+    const alpha = new Uint8Array(16);
+    alpha[1 * 4 + 1] = 255;
+    alpha[1 * 4 + 2] = 255;
+    alpha[2 * 4 + 1] = 255;
+    alpha[2 * 4 + 2] = 255;
+
+    const mask0 = new Uint8Array(16);
+    const mask1 = new Uint8Array(16);
+    mask0[1 * 4 + 1] = 1;
+    mask1[1 * 4 + 2] = 1;
+
+    const rawMasks: BinaryMask[] = [
+      { width, height, data: mask0 },
+      { width, height, data: mask1 },
+    ];
+
+    const layers: ChromaLayerState[] = [
+      { id: 'layer-0', order: 0, swatch: { id: 's0', name: 'Base', hex: '#000', oklab: [0,0,0], oklch: [0,0,0] }, underlapBleedMm: 0, isSolidBacking: true },
+      { id: 'layer-1', order: 1, swatch: { id: 's1', name: 'Red', hex: '#f00', oklab: [0.6,0.2,0.1], oklch: [0.6,0.2,30] }, underlapBleedMm: 0 },
+    ];
+
+    const { finalMasks } = generatePhysicalLayerMasks(rawMasks, layers, 'stacked_relief', 1.0, 0, alpha, false);
+
+    // Margins (0,0), (1,0), (3,1) MUST be empty (0) in both Layer 0 and Layer 1
+    expect(finalMasks[0].data[0]).toBe(0);
+    expect(finalMasks[0].data[1]).toBe(0);
+    expect(finalMasks[1].data[0]).toBe(0);
+    expect(finalMasks[1].data[1 * 4 + 3]).toBe(0);
+
+    // Interior image bounds: Layer 0 solid backing fills (1,1) and (1,2)
+    expect(finalMasks[0].data[1 * 4 + 1]).toBe(1);
+    expect(finalMasks[0].data[1 * 4 + 2]).toBe(1);
+
+    // Layer 1 cutout is strictly (1,2)
+    expect(finalMasks[1].data[1 * 4 + 2]).toBe(1);
+    expect(finalMasks[1].data[1 * 4 + 1]).toBe(0);
+  });
+
   describe('Multi-Algorithm Clustering Engines', () => {
     it('should extract Luma Ramp palette with strictly monotonic lightness', () => {
       const width = 20;
