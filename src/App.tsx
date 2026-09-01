@@ -503,44 +503,51 @@ export const App: React.FC = () => {
     );
   }, [classification.layerMasks, throttledLayers, throttledProcessing.assemblyMode, throttledProcessing.underlapBleedMm, precomputedOklch?.alpha, state.canvas]);
 
-  // -------------------------------------------------------------
-  // Pipeline Step 3c: Physical Surface Texturing & Negative Space Gradients
-  // -------------------------------------------------------------
-  const texturedMasks = useMemo(() => {
-    if (!state.surfaceTexture?.enabled || finalMasks.length === 0) {
-      return finalMasks;
-    }
-    const printable = getPrintableArea(state.canvas);
-    return applySurfaceTexturing(
-      finalMasks,
-      throttledLayers,
-      state.surfaceTexture,
-      printable.pxPerMm,
-      precomputedOklch?.alpha
-    );
-  }, [finalMasks, throttledLayers, state.surfaceTexture, state.canvas, precomputedOklch?.alpha]);
+  // Throttled surface texture config to provide 220ms mid-drag refresh and instant settle
+  const throttledSurfaceTexture = useThrottledValue(state.surfaceTexture, 220);
 
   // -------------------------------------------------------------
   // Pipeline Step 4: Robust & Cached Potrace Vector Tracing
   // -------------------------------------------------------------
   const vectorResults = useMemo(() => {
     const results = new Map<string, VectorLayerResult>();
-    if (texturedMasks.length === 0 || throttledLayers.length === 0) {
+    if (finalMasks.length === 0 || throttledLayers.length === 0) {
       return results;
     }
 
     const printable = getPrintableArea(state.canvas);
 
+    // 1. Hardware-accelerated morphological clearance & organic contour smoothing on base layer masks
+    const clearedMasks = finalMasks.map(rawMask =>
+      filterBinaryMaskCanvas(
+        rawMask,
+        throttledProcessing.minimumFeatureSize,
+        printable.pxPerMm,
+        throttledProcessing.smoothing
+      )
+    );
+
+    // 2. Apply intentional physical surface texturing & negative space gradients
+    const texturedMasks = throttledSurfaceTexture?.enabled
+      ? applySurfaceTexturing(
+          clearedMasks,
+          throttledLayers,
+          throttledSurfaceTexture,
+          printable.pxPerMm,
+          precomputedOklch?.alpha
+        )
+      : clearedMasks;
+
     throttledLayers.forEach((layer) => {
       const idx = throttledLayers.findIndex(l => l.id === layer.id);
-      const rawMask = texturedMasks[idx];
-      if (!rawMask) return;
+      const activeMask = texturedMasks[idx];
+      if (!activeMask) return;
 
       // Cache key for vector path including canvas size, margin, aesthetic filter, and texturing
       const editsHash = JSON.stringify(layer.manualEdits || {});
       const filterHash = JSON.stringify(state.aestheticFilter);
-      const textureHash = JSON.stringify(state.surfaceTexture || {});
-      const cacheKey = `${layer.id}:${rawMask.width}x${rawMask.height}:${state.canvas.width}x${state.canvas.height}${state.canvas.unit}:${state.canvas.margin}:${throttledProcessing.minimumFeatureSize}:${throttledProcessing.smoothing}:${throttledProcessing.assemblyMode}:${throttledProcessing.underlapBleedMm}:${throttledProcessing.colorBias}:${throttledProcessing.hueWeight}:${throttledProcessing.lightnessWeight}:${throttledProcessing.chromaWeight}:${throttledProcessing.chromaFloor}:${filterHash}:${textureHash}:${editsHash}`;
+      const textureHash = JSON.stringify(throttledSurfaceTexture || {});
+      const cacheKey = `${layer.id}:${activeMask.width}x${activeMask.height}:${state.canvas.width}x${state.canvas.height}${state.canvas.unit}:${state.canvas.margin}:${throttledProcessing.minimumFeatureSize}:${throttledProcessing.smoothing}:${throttledProcessing.assemblyMode}:${throttledProcessing.underlapBleedMm}:${throttledProcessing.colorBias}:${throttledProcessing.hueWeight}:${throttledProcessing.lightnessWeight}:${throttledProcessing.chromaWeight}:${throttledProcessing.chromaFloor}:${filterHash}:${textureHash}:${editsHash}`;
 
       const cached = vectorCacheRef.current.get(cacheKey);
       if (cached) {
@@ -548,28 +555,23 @@ export const App: React.FC = () => {
         return;
       }
 
-      // 1. Hardware-accelerated morphological clearance & organic contour smoothing
-      const clearedMask = filterBinaryMaskCanvas(
-        rawMask,
-        throttledProcessing.minimumFeatureSize,
-        printable.pxPerMm,
-        throttledProcessing.smoothing
-      );
-
-      // 2. Apply non-destructive manual wand/bridge edits
+      // 3. Apply non-destructive manual wand/bridge edits
       const editedMask = applyManualEditsToMask(
-        clearedMask,
+        activeMask,
         layer.manualEdits,
-        clearedMask.width,
-        clearedMask.height,
+        activeMask.width,
+        activeMask.height,
         printable.pxPerMm
       );
 
-      const turdSize = calculateTurdSize(throttledProcessing.minimumFeatureSize, printable.pxPerMm);
+      const turdSize = calculateTurdSize(
+        throttledSurfaceTexture?.enabled ? 0.5 : throttledProcessing.minimumFeatureSize,
+        printable.pxPerMm
+      );
       const alphaMax = calculateAlphaMax(throttledProcessing.smoothing);
       const optTol = calculateOptTolerance(throttledProcessing.smoothing);
 
-      // 3. Tracing compound vector path
+      // 4. Tracing compound vector path
       const vec = traceBinaryMaskToSVG(editedMask, layer.id, {
         turdSize,
         alphaMax,
@@ -583,7 +585,15 @@ export const App: React.FC = () => {
     });
 
     return results;
-  }, [activeTab, finalMasks, throttledLayers, state.selectedLayerId, throttledProcessing, state.canvas]);
+  }, [
+    finalMasks,
+    throttledLayers,
+    throttledProcessing,
+    throttledSurfaceTexture,
+    state.aestheticFilter,
+    state.canvas,
+    precomputedOklch?.alpha,
+  ]);
 
   // Touchup tools handlers
   const handleApplyWandEdit = (layerId: string, normX: number, normY: number, fillType: 0 | 1) => {

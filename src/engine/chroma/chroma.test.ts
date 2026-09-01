@@ -11,7 +11,7 @@ import {
 import { extractDominantPalette } from './kmeans';
 import { classifyImagePixels } from './classifier';
 import { generatePhysicalLayerMasks, dilateBinaryMask } from './underlap';
-import { BinaryMask, ChromaLayerState, ChromaProcessingSettings } from '../types';
+import { BinaryMask, ChromaLayerState, ChromaProcessingSettings, ChromaSwatch } from '../types';
 
 // Polyfill minimal ImageData for Node test runner if needed
 function makeImageData(data: Uint8ClampedArray, width: number, height: number): ImageData {
