@@ -177,14 +177,20 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
   const selectedLayer = layers.find(l => l.id === selectedLayerId) || sortedLayers[0];
   const targetLayerId = selectedLayerId || selectedLayer?.id;
 
+  // Local working image state during active drag to allow 60-120fps smooth manipulation
+  const [localWorkingImage, setLocalWorkingImage] = useState<WorkingImageState | null>(null);
+
+  // Active working image displayed in source view (falls back to props when not actively dragging)
+  const effectiveWorkingImage = localWorkingImage || workingImage;
+
   // Placed image bounding calculations inside canvas sheet for Source View
   const placedImageGeometry = useMemo(() => {
     if (!sourceImage) return null;
     const { widthPx: pW, heightPx: pH, printableWidthPx: printW, printableHeightPx: printH } = printable;
     const srcW = sourceImage.width;
     const srcH = sourceImage.height;
-    const cropW = (workingImage?.crop?.geometry?.width && workingImage.crop.geometry.width > 0) ? workingImage.crop.geometry.width : srcW;
-    const cropH = (workingImage?.crop?.geometry?.height && workingImage.crop.geometry.height > 0) ? workingImage.crop.geometry.height : srcH;
+    const cropW = (effectiveWorkingImage?.crop?.geometry?.width && effectiveWorkingImage.crop.geometry.width > 0) ? effectiveWorkingImage.crop.geometry.width : srcW;
+    const cropH = (effectiveWorkingImage?.crop?.geometry?.height && effectiveWorkingImage.crop.geometry.height > 0) ? effectiveWorkingImage.crop.geometry.height : srcH;
 
     const cropAspect = cropW / Math.max(1, cropH);
     const targetAspect = printW / Math.max(1, printH);
@@ -198,10 +204,10 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       baseW = printH * cropAspect;
     }
 
-    const scaleX = workingImage?.scaleX ?? 1.0;
-    const scaleY = workingImage?.scaleY ?? 1.0;
-    const posX = workingImage?.position?.x ?? 0;
-    const posY = workingImage?.position?.y ?? 0;
+    const scaleX = effectiveWorkingImage?.scaleX ?? 1.0;
+    const scaleY = effectiveWorkingImage?.scaleY ?? 1.0;
+    const posX = effectiveWorkingImage?.position?.x ?? 0;
+    const posY = effectiveWorkingImage?.position?.y ?? 0;
 
     const w = baseW * scaleX;
     const h = baseH * scaleY;
@@ -218,14 +224,14 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       baseW,
       baseH,
       coverScale,
-      cropX: workingImage?.crop?.geometry?.x || 0,
-      cropY: workingImage?.crop?.geometry?.y || 0,
+      cropX: effectiveWorkingImage?.crop?.geometry?.x || 0,
+      cropY: effectiveWorkingImage?.crop?.geometry?.y || 0,
       cropW,
       cropH,
       srcW,
       srcH,
     };
-  }, [sourceImage, workingImage, printable]);
+  }, [sourceImage, effectiveWorkingImage, printable]);
 
   // Unified Canvas Mouse Down Handler
   const handleSheetMouseDown = (e: React.MouseEvent) => {
@@ -261,6 +267,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
         setSourceDragMode(mode);
         setDragStartMouse({ x: clientX, y: clientY });
         setDragInitialWorking(workingImage);
+        setLocalWorkingImage(workingImage);
         e.preventDefault();
         return;
       }
@@ -287,19 +294,19 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     const normX = Math.max(0, Math.min(1, clientX / printable.widthPx));
     const normY = Math.max(0, Math.min(1, clientY / printable.heightPx));
 
-    // TAB 1: Source Framing Drag Updates
-    if (activeTab === 'source' && sourceDragMode !== 'none' && dragStartMouse && dragInitialWorking && onUpdateWorkingImage && placedImageGeometry) {
+    // TAB 1: Source Framing Drag Updates (Local state for 60fps smoothness)
+    if (activeTab === 'source' && sourceDragMode !== 'none' && dragStartMouse && dragInitialWorking && placedImageGeometry) {
       const dx = clientX - dragStartMouse.x;
       const dy = clientY - dragStartMouse.y;
 
       if (sourceDragMode === 'move') {
-        onUpdateWorkingImage(prev => ({
-          ...prev,
+        setLocalWorkingImage({
+          ...dragInitialWorking,
           position: {
             x: Math.round(dragInitialWorking.position.x + dx),
             y: Math.round(dragInitialWorking.position.y + dy),
           },
-        }));
+        });
       } else if (sourceDragMode.startsWith('scale')) {
         const { baseW, baseH } = placedImageGeometry;
         const initialScale = dragInitialWorking.scaleX;
@@ -316,11 +323,11 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
         }
 
         const nextScale = Math.max(0.1, Math.min(4.0, Math.round((initialScale + scaleDelta) * 100) / 100));
-        onUpdateWorkingImage(prev => ({
-          ...prev,
+        setLocalWorkingImage({
+          ...dragInitialWorking,
           scaleX: nextScale,
           scaleY: nextScale,
-        }));
+        });
       }
       return;
     }
@@ -332,11 +339,16 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
   };
 
   const handleSheetMouseUp = (e: React.MouseEvent) => {
-    // TAB 1: End Source Framing Drag
+    // TAB 1: End Source Framing Drag and commit to main state history
     if (activeTab === 'source' && sourceDragMode !== 'none') {
+      if (localWorkingImage && onUpdateWorkingImage) {
+        const finalImg = localWorkingImage;
+        onUpdateWorkingImage(() => finalImg);
+      }
       setSourceDragMode('none');
       setDragStartMouse(null);
       setDragInitialWorking(null);
+      setLocalWorkingImage(null);
       return;
     }
 

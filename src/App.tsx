@@ -399,9 +399,9 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleUndo, handleRedo, updateState]);
 
-  // -------------------------------------------------------------
-  // Pipeline Step 1: Resample Working Image to Canvas Dimensions
-  // -------------------------------------------------------------
+  // Throttled working image during scale slider changes to prevent pipeline freezing
+  const throttledWorkingImage = useThrottledValue(state.workingImage, 180);
+
   // -------------------------------------------------------------
   // Pipeline Step 1: Resample Working Image to Canvas Dimensions
   // -------------------------------------------------------------
@@ -419,7 +419,7 @@ export const App: React.FC = () => {
 
     return resampleWorkingImage(
       state.sourceImage,
-      state.workingImage,
+      throttledWorkingImage,
       targetW,
       targetH,
       widthPx,
@@ -427,7 +427,7 @@ export const App: React.FC = () => {
       printableWidthPx,
       printableHeightPx
     );
-  }, [state.sourceImage, state.workingImage, state.canvas]);
+  }, [state.sourceImage, throttledWorkingImage, state.canvas]);
 
   // -------------------------------------------------------------
   // Pipeline Step 2: Preprocess ImageData (Aesthetic Filters)
