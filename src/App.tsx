@@ -455,10 +455,10 @@ export const App: React.FC = () => {
   const throttledLayers = useThrottledValue(state.layers, 220);
   const vectorCacheRef = useRef<Map<string, VectorLayerResult>>(new Map());
 
-  // Invalidate vector cache when palette, source image, aesthetic filter, surface texturing, or margin mode changes
+  // Invalidate vector cache when palette, source image, working framing, aesthetic filter, surface texturing, or margin mode changes
   useEffect(() => {
     vectorCacheRef.current.clear();
-  }, [state.palette, state.sourceImage, state.aestheticFilter, state.surfaceTexture, state.processing.unionMarginBorders]);
+  }, [state.palette, state.sourceImage, state.workingImage, state.aestheticFilter, state.surfaceTexture, state.processing.unionMarginBorders]);
 
   // -------------------------------------------------------------
   // Precompute OKLCH Float32Array Cache (Runs once on image load/filter change)
@@ -545,11 +545,12 @@ export const App: React.FC = () => {
       const activeMask = texturedMasks[idx];
       if (!activeMask) return;
 
-      // Cache key for vector path including canvas size, margin, aesthetic filter, texturing, and margin union mode
+      // Cache key for vector path including canvas size, margin, framing transform, aesthetic filter, texturing, and margin union mode
       const editsHash = JSON.stringify(layer.manualEdits || {});
       const filterHash = JSON.stringify(state.aestheticFilter);
       const textureHash = JSON.stringify(throttledSurfaceTexture || {});
-      const cacheKey = `${layer.id}:${activeMask.width}x${activeMask.height}:${state.canvas.width}x${state.canvas.height}${state.canvas.unit}:${state.canvas.margin}:${throttledProcessing.minimumFeatureSize}:${throttledProcessing.smoothing}:${throttledProcessing.assemblyMode}:${throttledProcessing.underlapBleedMm}:${throttledProcessing.unionMarginBorders}:${throttledProcessing.colorBias}:${throttledProcessing.hueWeight}:${throttledProcessing.lightnessWeight}:${throttledProcessing.chromaWeight}:${throttledProcessing.chromaFloor}:${filterHash}:${textureHash}:${editsHash}`;
+      const workingHash = `${throttledWorkingImage.scaleX}:${throttledWorkingImage.scaleY}:${throttledWorkingImage.position.x}:${throttledWorkingImage.position.y}:${throttledWorkingImage.crop.geometry.x}:${throttledWorkingImage.crop.geometry.y}:${throttledWorkingImage.crop.geometry.width}:${throttledWorkingImage.crop.geometry.height}`;
+      const cacheKey = `${layer.id}:${workingHash}:${activeMask.width}x${activeMask.height}:${state.canvas.width}x${state.canvas.height}${state.canvas.unit}:${state.canvas.margin}:${throttledProcessing.minimumFeatureSize}:${throttledProcessing.smoothing}:${throttledProcessing.assemblyMode}:${throttledProcessing.underlapBleedMm}:${throttledProcessing.unionMarginBorders}:${throttledProcessing.colorBias}:${throttledProcessing.hueWeight}:${throttledProcessing.lightnessWeight}:${throttledProcessing.chromaWeight}:${throttledProcessing.chromaFloor}:${filterHash}:${textureHash}:${editsHash}`;
 
       const cached = vectorCacheRef.current.get(cacheKey);
       if (cached) {
