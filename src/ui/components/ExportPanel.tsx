@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { ChromaLayerState, CanvasSettings, VectorLayerResult, AppState } from '../../engine/types';
-import { Download, Archive, Printer, Target, FileCode } from 'lucide-react';
+import { ChromaLayerState, CanvasSettings, VectorLayerResult, AppState, SourceImage } from '../../engine/types';
+import { Download, Target, Printer, Layers } from 'lucide-react';
 import { CollapsibleSection } from './CollapsibleSection';
 import { ExportModal } from './ExportModal';
 
@@ -9,6 +9,7 @@ interface ExportPanelProps {
   vectorResults: Map<string, VectorLayerResult>;
   canvas: CanvasSettings;
   output: AppState['output'];
+  sourceImage?: SourceImage | null;
   onUpdateState: (updater: (prev: AppState) => AppState) => void;
   defaultOpen?: boolean;
 }
@@ -18,27 +19,24 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
   vectorResults,
   canvas,
   output,
+  sourceImage = null,
   onUpdateState,
   defaultOpen = true,
 }) => {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   return (
     <CollapsibleSection
-      title="Export & Print"
+      title="Export & Production"
       icon={<Download className="w-3.5 h-3.5 text-sand-400" />}
       defaultExpanded={defaultOpen}
     >
       <div className="space-y-3 pt-0.5 text-xs">
-        {/* Registration Marks Toggle */}
+        {/* Registration Marks Toggle with Warm Muted Cream/Yellow Accent */}
         <div className="flex items-center justify-between p-2 bg-moss-950/70 rounded-lg border border-sand-400/20">
           <label htmlFor="reg-marks-toggle" className="flex items-center gap-2 font-medium text-sand-200 cursor-pointer text-xs">
-            <Target className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>Registration Marks</span>
+            <Target className="w-4 h-4 text-amber-300 shrink-0" />
+            <span>Registration Marks (Corner Alignment)</span>
           </label>
           <input
             id="reg-marks-toggle"
@@ -51,36 +49,19 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
                 output: { ...prev.output, registrationMarks },
               }));
             }}
-            className="w-4 h-4 accent-emerald-600 cursor-pointer rounded bg-moss-900 border-sand-400/30"
+            className="w-4 h-4 accent-amber-300 cursor-pointer rounded bg-moss-900 border-sand-400/30"
           />
         </div>
 
-        {/* Action Buttons */}
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={() => setIsExportModalOpen(true)}
-            className="w-full btn btn-primary flex items-center justify-center gap-2 py-2 text-xs font-semibold"
-          >
-            <Download className="w-4 h-4" /> Export Combined SVG
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsExportModalOpen(true)}
-            className="w-full btn btn-secondary flex items-center justify-center gap-2 py-2 text-xs text-sand-200"
-          >
-            <Archive className="w-4 h-4 text-emerald-400" /> Export Layer Package (.zip)
-          </button>
-
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="w-full btn btn-secondary flex items-center justify-center gap-2 py-2 text-xs text-sand-200 hover:text-white"
-          >
-            <Printer className="w-4 h-4 text-sand-400" /> Print (100% Scale)
-          </button>
-        </div>
+        {/* Primary Single Launch Action */}
+        <button
+          type="button"
+          onClick={() => setIsExportModalOpen(true)}
+          className="w-full py-2.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold flex items-center justify-center gap-2 shadow-md transition"
+        >
+          <Download className="w-4 h-4" />
+          <span>Export Patterns & Digital Assets...</span>
+        </button>
       </div>
 
       {/* Export Naming & File Generation Modal */}
@@ -90,8 +71,10 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
         layers={layers}
         vectorResults={vectorResults}
         canvas={canvas}
+        sourceImage={sourceImage}
         registrationMarks={output.registrationMarks}
       />
     </CollapsibleSection>
   );
 };
+

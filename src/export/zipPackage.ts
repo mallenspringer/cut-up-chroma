@@ -58,21 +58,20 @@ export function createZipPackage(
   });
 
   // 3. Assembly Readme text
-  const readmeContent = `CutUp Chroma — Production Cut Pattern Package
+  const readmeContent = `CutUp Chroma — Layer-by-Layer Production Package
 ==================================================
-Project Prefix: ${cleanPrefix}
-Canvas Dimensions: ${canvas.width} x ${canvas.height} ${canvas.unit}
+Project Name: ${cleanPrefix}
+Sheet Dimensions: ${canvas.width} x ${canvas.height} ${canvas.unit}
 Total Color Layers: ${layers.length}
 Registration Marks: ${includeRegistrationMarks ? 'Included' : 'None'}
 
-Layer Assembly Order (Z-Stack: 01 = Base Sheet -> Top Sheet):
+Layer Assembly Order (Z-Stack: 01 = Base Foundation -> Top Layer):
 --------------------------------------------------
-${sortedLayers.map((l, i) => `${String(i + 1).padStart(2, '0')}. ${l.swatch.name} (${l.swatch.hex}) - ${l.isSolidBacking ? '[Solid Backing Base]' : 'Cutout Layer'}`).join('\n')}
+${sortedLayers.map((l, i) => `${String(i + 1).padStart(2, '0')}. ${l.swatch.name} (${l.swatch.hex}) - ${l.isSolidBacking ? '[Solid Foundation Base]' : 'Layer'}`).join('\n')}
 
-Instructions:
-- Import individual SVG files into Glowforge, LightBurn, Cricut Design Space, or Silhouette Studio.
-- Ensure 1:1 scale (unit dimensions: ${canvas.width}x${canvas.height}${canvas.unit}) without autoscaling.
-- Assemble layers sequentially from 01 up to ${String(layers.length).padStart(2, '0')}.
+Production & Fabrication Notes:
+- Physical Cutting (Laser / Cricut / Silhouette): Import individual SVG files at 1:1 scale (${canvas.width}x${canvas.height}${canvas.unit}). Assemble sequentially from 01 to ${String(layers.length).padStart(2, '0')}.
+- Screen Printing & Risograph: Use individual SVG separation sheets as film positives / stencils.
 `;
 
   files['README_Assembly_Guide.txt'] = strToU8(readmeContent);

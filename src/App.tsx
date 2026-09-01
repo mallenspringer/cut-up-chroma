@@ -885,6 +885,7 @@ export const App: React.FC = () => {
             layers={state.layers}
             vectorResults={vectorResults}
             canvas={state.canvas}
+            sourceImage={state.sourceImage}
             output={state.output}
             onUpdateState={updateState}
           />
