@@ -752,6 +752,7 @@ export const App: React.FC = () => {
             quantizedImageData={classification.quantizedImageData}
             layers={state.layers}
             selectedLayerId={state.selectedLayerId}
+            onSelectLayer={id => updateState(prev => ({ ...prev, selectedLayerId: id }))}
             vectorResults={vectorResults}
             underlapOverlays={underlapOverlays}
             canvas={state.canvas}
@@ -759,6 +760,7 @@ export const App: React.FC = () => {
             activeTool={state.activeTool}
             onToolChange={tool => updateState(prev => ({ ...prev, activeTool: tool }))}
             bridgeWidthMm={state.bridgeWidthMm}
+            registrationMarks={state.output.registrationMarks}
             onApplyWandEdit={handleApplyWandEdit}
             onApplyBridgeStroke={handleApplyBridgeStroke}
           />

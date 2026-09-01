@@ -9,7 +9,7 @@ import {
   BinaryMask,
 } from '../../engine/types';
 import { UserPreferences } from '../../state/preferences';
-import { getPrintableArea } from '../../engine/layout/canvasLayout';
+import { getPrintableArea, generateRegistrationMarksSVG } from '../../engine/layout/canvasLayout';
 import {
   ZoomIn,
   ZoomOut,
@@ -21,6 +21,8 @@ import {
   Image as ImageIcon,
   CheckCircle2,
   Sliders,
+  ChevronDown,
+  Info,
 } from 'lucide-react';
 
 interface CanvasViewportProps {
@@ -30,6 +32,7 @@ interface CanvasViewportProps {
   quantizedImageData: ImageData | null;
   layers: ChromaLayerState[];
   selectedLayerId: string | null;
+  onSelectLayer?: (layerId: string) => void;
   vectorResults: Map<string, VectorLayerResult>;
   underlapOverlays: BinaryMask[];
   canvas: CanvasSettings;
@@ -37,6 +40,7 @@ interface CanvasViewportProps {
   activeTool: ActiveTool;
   onToolChange: (tool: ActiveTool) => void;
   bridgeWidthMm: number;
+  registrationMarks?: boolean;
   onApplyWandEdit?: (layerId: string, normX: number, normY: number, fillType: 0 | 1) => void;
   onApplyBridgeStroke?: (layerId: string, x1: number, y1: number, x2: number, y2: number, widthMm: number) => void;
   onSampleColor?: (hex: string) => void;
@@ -49,12 +53,14 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
   quantizedImageData,
   layers,
   selectedLayerId,
+  onSelectLayer,
   vectorResults,
   canvas,
   preferences,
   activeTool,
   onToolChange,
   bridgeWidthMm,
+  registrationMarks = false,
   onApplyWandEdit,
   onApplyBridgeStroke,
 }) => {
@@ -67,6 +73,10 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
 
   // Bridge drawing state
   const [bridgeStart, setBridgeStart] = useState<{ x: number; y: number } | null>(null);
+  const [bridgeCurrent, setBridgeCurrent] = useState<{ x: number; y: number } | null>(null);
+
+  // Layer selector dropdown state for composite view HUD
+  const [isLayerDropdownOpen, setIsLayerDropdownOpen] = useState(false);
 
   const printable = useMemo(() => getPrintableArea(canvas), [canvas]);
 
@@ -90,21 +100,6 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
             quantizedImageData.width,
             quantizedImageData.height
           );
-
-          // Build mapping from custom hex to computed hex
-          const colorMap = new Map<string, { r: number; g: number; b: number }>();
-          layers.forEach(l => {
-            if (l.swatch.computedHex) {
-              const clean = l.swatch.computedHex.replace('#', '');
-              const num = parseInt(clean, 16) || 0;
-              colorMap.set(l.swatch.hex.toLowerCase(), {
-                r: (num >> 16) & 255,
-                g: (num >> 8) & 255,
-                b: num & 255,
-              });
-            }
-          });
-
           ctx.putImageData(rawClone, 0, 0);
         }
       }
@@ -160,14 +155,18 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     };
   }, []);
 
-  // Layer editing click handler
+  const sortedLayers = useMemo(() => [...layers].sort((a, b) => a.order - b.order), [layers]);
+  const selectedLayer = layers.find(l => l.id === selectedLayerId) || sortedLayers[0];
+  const targetLayerId = selectedLayerId || selectedLayer?.id;
+
+  // Layer editing click handler (Works for both Single Layer and 3D Composite view)
   const handleSheetMouseDown = (e: React.MouseEvent) => {
-    if (!selectedLayerId || activeTab !== 'layer') return;
+    if (activeTab !== 'layer' && activeTab !== 'composite') return;
+    if (!targetLayerId) return;
 
     const rect = pageFrameRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    // Normalizing canvas coordinates (0..1)
     const clientX = e.clientX - rect.left;
     const clientY = e.clientY - rect.top;
     const normX = Math.max(0, Math.min(1, clientX / rect.width));
@@ -175,14 +174,28 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
 
     if (activeTool === 'wand' && onApplyWandEdit) {
       const fillType: 0 | 1 = e.button === 2 || e.ctrlKey ? 0 : 1;
-      onApplyWandEdit(selectedLayerId, normX, normY, fillType);
+      onApplyWandEdit(targetLayerId, normX, normY, fillType);
     } else if (activeTool === 'bridge') {
       setBridgeStart({ x: normX, y: normY });
+      setBridgeCurrent({ x: normX, y: normY });
+    }
+  };
+
+  const handleSheetMouseMove = (e: React.MouseEvent) => {
+    if (activeTool === 'bridge' && bridgeStart) {
+      const rect = pageFrameRef.current?.getBoundingClientRect();
+      if (rect) {
+        const clientX = e.clientX - rect.left;
+        const clientY = e.clientY - rect.top;
+        const normX = Math.max(0, Math.min(1, clientX / rect.width));
+        const normY = Math.max(0, Math.min(1, clientY / rect.height));
+        setBridgeCurrent({ x: normX, y: normY });
+      }
     }
   };
 
   const handleSheetMouseUp = (e: React.MouseEvent) => {
-    if (activeTool === 'bridge' && bridgeStart && selectedLayerId && onApplyBridgeStroke) {
+    if (activeTool === 'bridge' && bridgeStart && targetLayerId && onApplyBridgeStroke) {
       const rect = pageFrameRef.current?.getBoundingClientRect();
       if (rect) {
         const clientX = e.clientX - rect.left;
@@ -190,9 +203,10 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
         const normX = Math.max(0, Math.min(1, clientX / rect.width));
         const normY = Math.max(0, Math.min(1, clientY / rect.height));
 
-        onApplyBridgeStroke(selectedLayerId, bridgeStart.x, bridgeStart.y, normX, normY, bridgeWidthMm);
+        onApplyBridgeStroke(targetLayerId, bridgeStart.x, bridgeStart.y, normX, normY, bridgeWidthMm);
       }
       setBridgeStart(null);
+      setBridgeCurrent(null);
     }
   };
 
@@ -201,15 +215,20 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     setZoom(fit);
   };
 
-  const sortedLayers = useMemo(() => [...layers].sort((a, b) => a.order - b.order), [layers]);
-  const selectedLayer = layers.find(l => l.id === selectedLayerId);
-
   const firstVector = Array.from(vectorResults.values())[0];
   const viewW = firstVector?.width || printable.widthPx;
   const viewH = firstVector?.height || printable.heightPx;
 
+  // Registration marks SVG path
+  const regMarksPath = useMemo(() => {
+    return registrationMarks ? generateRegistrationMarksSVG(canvas, viewW, viewH) : '';
+  }, [registrationMarks, canvas, viewW, viewH]);
+
   // Workbench CSS theme class
   const themeClass = `workbench-theme-${preferences.workbenchTheme || 'drafting'}`;
+
+  // Interactive touchup HUD is visible on Layer View and Composite 3D View
+  const showTouchupHUD = activeTab === 'layer' || activeTab === 'composite';
 
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-[#0d140e] overflow-hidden select-none">
@@ -325,9 +344,12 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
         <div
           ref={pageFrameRef}
           onMouseDown={handleSheetMouseDown}
+          onMouseMove={handleSheetMouseMove}
           onMouseUp={handleSheetMouseUp}
           onContextMenu={e => e.preventDefault()}
-          className="print-target-page transition-transform duration-75 ease-out shadow-2xl relative bg-sand-50 rounded-sm border border-sand-400/40 overflow-hidden shrink-0"
+          className={`print-target-page transition-transform duration-75 ease-out shadow-2xl relative bg-sand-50 rounded-sm border border-sand-400/40 overflow-hidden shrink-0 ${
+            activeTool === 'wand' ? 'cursor-crosshair' : activeTool === 'bridge' ? 'cursor-cell' : 'cursor-default'
+          }`}
           style={{
             width: `${printable.widthPx}px`,
             height: `${printable.heightPx}px`,
@@ -472,6 +494,42 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
             </div>
           )}
 
+          {/* Interactive Bridge Stroke Dragging Preview */}
+          {bridgeStart && bridgeCurrent && (
+            <svg
+              className="absolute inset-0 w-full h-full pointer-events-none z-50"
+              viewBox={`0 0 ${viewW} ${viewH}`}
+            >
+              <line
+                x1={bridgeStart.x * viewW}
+                y1={bridgeStart.y * viewH}
+                x2={bridgeCurrent.x * viewW}
+                y2={bridgeCurrent.y * viewH}
+                stroke="#34d399"
+                strokeWidth={Math.max(2, (bridgeWidthMm * printable.pxPerMm * (viewW / printable.widthPx)))}
+                strokeLinecap="round"
+                strokeDasharray="4 2"
+                opacity={0.85}
+              />
+            </svg>
+          )}
+
+          {/* Registration Marks Live Overlay */}
+          {regMarksPath && (
+            <svg
+              className="absolute inset-0 w-full h-full pointer-events-none z-30"
+              viewBox={`0 0 ${viewW} ${viewH}`}
+            >
+              <path
+                d={regMarksPath}
+                stroke="#1b281f"
+                strokeWidth="0.8"
+                fill="none"
+                opacity={0.7}
+              />
+            </svg>
+          )}
+
           {/* Overlaid Margin Guide (z-index: 40 on top of image and cut paths) */}
           <div
             className="absolute border border-dashed border-sand-400/50 pointer-events-none z-40 print-hide"
@@ -485,47 +543,113 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
         </div>
       </div>
 
-      {/* Floating Toolbar for Touchup Tools (in Layer View) */}
-      {activeTab === 'layer' && (
-        <div className="floating-toolbar absolute top-14 left-1/2 -translate-x-1/2 z-30 p-1.5 rounded-lg bg-moss-900/90 border border-sand-400/25 backdrop-blur-md shadow-xl flex items-center gap-1 text-xs print-hide">
-          <button
-            type="button"
-            onClick={() => onToolChange('navigate')}
-            className={`p-2 rounded-md transition-colors ${
-              activeTool === 'navigate'
-                ? 'bg-emerald-600 text-white'
-                : 'text-sand-300 hover:text-white hover:bg-moss-800'
-            }`}
-            title="Navigate (V)"
-          >
-            <MousePointer className="w-4 h-4" />
-          </button>
+      {/* Floating Touchup & Bridge HUD Toolbar (Visible in both Layer View & 3D Composite Stack) */}
+      {showTouchupHUD && (
+        <div className="floating-toolbar absolute top-14 left-1/2 -translate-x-1/2 z-30 p-1.5 rounded-xl bg-moss-950/90 border border-sand-400/25 backdrop-blur-md shadow-2xl flex items-center gap-2 text-xs print-hide">
+          {/* Targeted Layer Chip & Quick Selector (In Composite View) */}
+          {activeTab === 'composite' && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsLayerDropdownOpen(prev => !prev)}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-moss-900 border border-sand-400/25 text-sand-100 hover:border-emerald-400/60 transition"
+                title="Target Layer for Touchup"
+              >
+                <div
+                  className="w-3 h-3 rounded-full border border-sand-400/40 shrink-0"
+                  style={{ backgroundColor: selectedLayer?.swatch.hex || '#000000' }}
+                />
+                <span className="text-[11px] font-medium max-w-[90px] truncate">
+                  {selectedLayer ? `Layer ${selectedLayer.order}${selectedLayer.order === 0 ? ' (Base)' : ''}` : 'Select Layer'}
+                </span>
+                <ChevronDown className="w-3 h-3 text-sand-400" />
+              </button>
 
-          <button
-            type="button"
-            onClick={() => onToolChange('wand')}
-            className={`p-2 rounded-md transition-colors ${
-              activeTool === 'wand'
-                ? 'bg-emerald-600 text-white'
-                : 'text-sand-300 hover:text-white hover:bg-moss-800'
-            }`}
-            title="Smart Wand Fill / Erase (W)"
-          >
-            <Wand2 className="w-4 h-4" />
-          </button>
+              {/* Layer Selection Dropdown Menu */}
+              {isLayerDropdownOpen && (
+                <div className="absolute top-full mt-1.5 left-0 w-44 rounded-lg bg-moss-950 border border-sand-400/25 shadow-2xl p-1 z-50 space-y-0.5 max-h-48 overflow-y-auto">
+                  {sortedLayers.map(l => (
+                    <button
+                      key={l.id}
+                      type="button"
+                      onClick={() => {
+                        onSelectLayer?.(l.id);
+                        setIsLayerDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-2 px-2 py-1 rounded text-left text-[11px] transition ${
+                        l.id === targetLayerId
+                          ? 'bg-emerald-900/60 text-emerald-300 font-semibold border border-emerald-600/40'
+                          : 'text-sand-300 hover:bg-moss-850 hover:text-white'
+                      }`}
+                    >
+                      <div
+                        className="w-2.5 h-2.5 rounded-full border border-sand-400/40 shrink-0"
+                        style={{ backgroundColor: l.swatch.hex }}
+                      />
+                      <span className="truncate flex-1">
+                        Layer {l.order} {l.order === 0 ? '(Base)' : ''}
+                      </span>
+                      <span className="text-[9.5px] font-mono text-sand-400">{l.swatch.hex}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
-          <button
-            type="button"
-            onClick={() => onToolChange('bridge')}
-            className={`p-2 rounded-md transition-colors ${
-              activeTool === 'bridge'
-                ? 'bg-emerald-600 text-white'
-                : 'text-sand-300 hover:text-white hover:bg-moss-800'
-            }`}
-            title="Bridge Pen (B)"
-          >
-            <PenTool className="w-4 h-4" />
-          </button>
+          {/* Tool Mode Buttons */}
+          <div className="flex items-center gap-1 border-l border-sand-400/20 pl-1.5">
+            <button
+              type="button"
+              onClick={() => onToolChange('navigate')}
+              className={`p-1.5 rounded-lg transition-colors ${
+                activeTool === 'navigate'
+                  ? 'bg-emerald-600 text-white shadow'
+                  : 'text-sand-300 hover:text-white hover:bg-moss-800'
+              }`}
+              title="Navigate & Pan (V)"
+            >
+              <MousePointer className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onToolChange('wand')}
+              className={`p-1.5 rounded-lg transition-colors ${
+                activeTool === 'wand'
+                  ? 'bg-emerald-600 text-white shadow'
+                  : 'text-sand-300 hover:text-white hover:bg-moss-800'
+              }`}
+              title="Smart Wand: L-Click to Fill, R-Click/Ctrl to Erase (W)"
+            >
+              <Wand2 className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onToolChange('bridge')}
+              className={`p-1.5 rounded-lg transition-colors ${
+                activeTool === 'bridge'
+                  ? 'bg-emerald-600 text-white shadow'
+                  : 'text-sand-300 hover:text-white hover:bg-moss-800'
+              }`}
+              title="Bridge Pen: Drag across islands to connect (B)"
+            >
+              <PenTool className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Quick Context Hint */}
+          {activeTool === 'wand' && (
+            <span className="text-[10px] text-sand-400 px-1 border-l border-sand-400/20 hidden sm:inline">
+              L-Click: Fill • R-Click/Ctrl: Erase
+            </span>
+          )}
+          {activeTool === 'bridge' && (
+            <span className="text-[10px] text-sand-400 px-1 border-l border-sand-400/20 hidden sm:inline">
+              Drag line ({bridgeWidthMm}mm)
+            </span>
+          )}
         </div>
       )}
 

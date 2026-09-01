@@ -94,29 +94,67 @@ export function getPrintableArea(canvas: CanvasSettings, dpi: number = DEFAULT_D
 }
 
 /**
- * Generates SVG path string for 4 corner registration targets
+ * Generates SVG path string for professional printmaker-grade registration targets.
+ * Includes concentric bullseye circles, extended quadrant crosshairs, and perimeter crop ticks.
  */
 export function generateRegistrationMarksSVG(canvas: CanvasSettings, viewW?: number, viewH?: number): string {
-  const { widthPx, heightPx, marginPx } = getPrintableArea(canvas);
+  const { widthPx, heightPx, marginPx, pxPerMm } = getPrintableArea(canvas);
   const w = viewW || widthPx;
   const h = viewH || heightPx;
   const scale = w / Math.max(1, widthPx);
 
-  const size = 12 * scale;
-  const offset = Math.max(4, (marginPx / 2) * scale);
+  // Target bullseye dimensions in pixels
+  const outerR = Math.max(4, Math.round(3.5 * pxPerMm * scale)); // ~3.5mm radius
+  const innerR = Math.max(2, Math.round(1.8 * pxPerMm * scale)); // ~1.8mm radius
+  const crosshairSpan = Math.max(6, Math.round(5.0 * pxPerMm * scale)); // ~5mm half-span
 
-  const corners: Point[] = [
-    { x: offset, y: offset },                     // Top-Left
-    { x: w - offset, y: offset },                 // Top-Right
-    { x: offset, y: h - offset },                // Bottom-Left
-    { x: w - offset, y: h - offset },             // Bottom-Right
+  // Safe offset within margin margin space
+  const effectiveMargin = Math.max(8, marginPx * scale);
+  const offset = Math.max(outerR + 2, Math.round(effectiveMargin / 2));
+
+  // 4 Corner Bullseye Targets + 2 Center Pin Register Targets (Top-Center & Bottom-Center)
+  const targets: Point[] = [
+    { x: offset, y: offset },         // Top-Left
+    { x: w - offset, y: offset },     // Top-Right
+    { x: offset, y: h - offset },    // Bottom-Left
+    { x: w - offset, y: h - offset }, // Bottom-Right
+    { x: Math.round(w / 2), y: offset },         // Top-Center (3-Point Pin Registration)
+    { x: Math.round(w / 2), y: h - offset },     // Bottom-Center
   ];
 
   let pathData = '';
-  corners.forEach(p => {
-    // Crosshairs + target circle
-    pathData += `M ${p.x - size / 2} ${p.y} H ${p.x + size / 2} M ${p.x} ${p.y - size / 2} V ${p.y + size / 2} `;
+
+  // 1. Concentric Bullseye Targets & Crosshairs
+  targets.forEach(p => {
+    const cx = p.x;
+    const cy = p.y;
+
+    // Crosshair Lines extending through circle
+    pathData += `M ${cx - crosshairSpan} ${cy} H ${cx + crosshairSpan} `;
+    pathData += `M ${cx} ${cy - crosshairSpan} V ${cy + crosshairSpan} `;
+
+    // Outer Circle
+    pathData += `M ${cx - outerR} ${cy} A ${outerR} ${outerR} 0 1 0 ${cx + outerR} ${cy} A ${outerR} ${outerR} 0 1 0 ${cx - outerR} ${cy} `;
+
+    // Inner Circle
+    pathData += `M ${cx - innerR} ${cy} A ${innerR} ${innerR} 0 1 0 ${cx + innerR} ${cy} A ${innerR} ${innerR} 0 1 0 ${cx - innerR} ${cy} `;
   });
 
-  return pathData;
+  // 2. L-Shaped Corner Crop Ticks at Printable Margin Perimeter
+  const cropTickLen = Math.max(3, Math.round(3.0 * pxPerMm * scale));
+  const mLeft = effectiveMargin;
+  const mTop = effectiveMargin;
+  const mRight = w - effectiveMargin;
+  const mBottom = h - effectiveMargin;
+
+  // Top-Left Corner Crop
+  pathData += `M ${mLeft - cropTickLen} ${mTop} H ${mLeft} V ${mTop - cropTickLen} `;
+  // Top-Right Corner Crop
+  pathData += `M ${mRight + cropTickLen} ${mTop} H ${mRight} V ${mTop - cropTickLen} `;
+  // Bottom-Left Corner Crop
+  pathData += `M ${mLeft - cropTickLen} ${mBottom} H ${mLeft} V ${mBottom + cropTickLen} `;
+  // Bottom-Right Corner Crop
+  pathData += `M ${mRight + cropTickLen} ${mBottom} H ${mRight} V ${mBottom + cropTickLen} `;
+
+  return pathData.trim();
 }
