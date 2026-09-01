@@ -25,9 +25,10 @@ import {
   ChevronDown,
   RotateCcw,
   Move,
-  Scan,
   Maximize2,
   Minimize2,
+  Crop,
+  Check,
 } from 'lucide-react';
 
 interface CanvasViewportProps {
@@ -86,9 +87,27 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
   const [bridgeStart, setBridgeStart] = useState<{ x: number; y: number } | null>(null);
   const [bridgeCurrent, setBridgeCurrent] = useState<{ x: number; y: number } | null>(null);
 
-  // Source image drag / transform state
+  // Source view tool mode: Transform (move/scale) vs Crop
+  const [sourceToolMode, setSourceToolMode] = useState<'transform' | 'crop'>('transform');
+  const [cropAspectPreset, setCropAspectPreset] = useState<'free' | '1:1' | '4:3' | '16:9' | 'original'>('free');
+
+  // Source image drag / transform / crop state
   const [sourceDragMode, setSourceDragMode] = useState<
-    'none' | 'move' | 'scale-tl' | 'scale-tr' | 'scale-bl' | 'scale-br' | 'scale-t' | 'scale-b' | 'scale-l' | 'scale-r'
+    | 'none'
+    | 'move'
+    | 'scale-tl'
+    | 'scale-tr'
+    | 'scale-bl'
+    | 'scale-br'
+    | 'crop-move'
+    | 'crop-tl'
+    | 'crop-tr'
+    | 'crop-bl'
+    | 'crop-br'
+    | 'crop-t'
+    | 'crop-b'
+    | 'crop-l'
+    | 'crop-r'
   >('none');
   const [dragStartMouse, setDragStartMouse] = useState<{ x: number; y: number } | null>(null);
   const [dragInitialWorking, setDragInitialWorking] = useState<WorkingImageState | null>(null);
@@ -112,7 +131,6 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
         if (!showRawCentroids) {
           ctx.putImageData(quantizedImageData, 0, 0);
         } else {
-          // If in raw centroids mode, remap pixel colors using layer.swatch.computedHex
           const rawClone = new ImageData(
             new Uint8ClampedArray(quantizedImageData.data),
             quantizedImageData.width,
@@ -173,6 +191,28 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     };
   }, []);
 
+  // Keyboard shortcut listener for Source View tools ('c' -> crop, 'v' -> move/transform, 'enter'/'esc' -> exit crop)
+  useEffect(() => {
+    if (activeTab !== 'source') return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (e.key.toLowerCase() === 'c') {
+        setSourceToolMode('crop');
+      } else if (e.key.toLowerCase() === 'v') {
+        setSourceToolMode('transform');
+      } else if (e.key === 'Enter' || e.key === 'Escape') {
+        if (sourceToolMode === 'crop') {
+          setSourceToolMode('transform');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTab, sourceToolMode]);
+
   const sortedLayers = useMemo(() => [...layers].sort((a, b) => a.order - b.order), [layers]);
   const selectedLayer = layers.find(l => l.id === selectedLayerId) || sortedLayers[0];
   const targetLayerId = selectedLayerId || selectedLayer?.id;
@@ -183,7 +223,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
   // Active working image displayed in source view (falls back to props when not actively dragging)
   const effectiveWorkingImage = localWorkingImage || workingImage;
 
-  // Placed image bounding calculations inside canvas sheet for Source View
+  // Placed image bounding calculations inside canvas sheet for Source View (Transform Mode)
   const placedImageGeometry = useMemo(() => {
     if (!sourceImage) return null;
     const { widthPx: pW, heightPx: pH, printableWidthPx: printW, printableHeightPx: printH } = printable;
@@ -233,6 +273,57 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     };
   }, [sourceImage, effectiveWorkingImage, printable]);
 
+  // Full uncropped source image fitted inside canvas bounds for Crop Mode
+  const cropModeGeometry = useMemo(() => {
+    if (!sourceImage) return null;
+    const { widthPx: pW, heightPx: pH, printableWidthPx: printW, printableHeightPx: printH } = printable;
+    const srcW = sourceImage.width;
+    const srcH = sourceImage.height;
+
+    const srcAspect = srcW / Math.max(1, srcH);
+    const targetAspect = printW / Math.max(1, printH);
+    let fitW = printW;
+    let fitH = printH;
+    if (srcAspect > targetAspect) {
+      fitW = printW;
+      fitH = printW / srcAspect;
+    } else {
+      fitH = printH;
+      fitW = printH * srcAspect;
+    }
+
+    const fitLeft = pW / 2 - fitW / 2;
+    const fitTop = pH / 2 - fitH / 2;
+
+    const currentCrop = effectiveWorkingImage?.crop?.geometry || { x: 0, y: 0, width: srcW, height: srcH };
+    const cropX = Math.max(0, currentCrop.x || 0);
+    const cropY = Math.max(0, currentCrop.y || 0);
+    const cropW = Math.min(srcW - cropX, (currentCrop.width && currentCrop.width > 0) ? currentCrop.width : srcW);
+    const cropH = Math.min(srcH - cropY, (currentCrop.height && currentCrop.height > 0) ? currentCrop.height : srcH);
+
+    const cropBoxLeft = fitLeft + (cropX / srcW) * fitW;
+    const cropBoxTop = fitTop + (cropY / srcH) * fitH;
+    const cropBoxWidth = (cropW / srcW) * fitW;
+    const cropBoxHeight = (cropH / srcH) * fitH;
+
+    return {
+      fitLeft,
+      fitTop,
+      fitWidth: fitW,
+      fitHeight: fitH,
+      srcW,
+      srcH,
+      cropX,
+      cropY,
+      cropW,
+      cropH,
+      cropBoxLeft,
+      cropBoxTop,
+      cropBoxWidth,
+      cropBoxHeight,
+    };
+  }, [sourceImage, effectiveWorkingImage, printable]);
+
   // Unified Canvas Mouse Down Handler
   const handleSheetMouseDown = (e: React.MouseEvent) => {
     const rect = pageFrameRef.current?.getBoundingClientRect();
@@ -243,33 +334,68 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     const normX = Math.max(0, Math.min(1, clientX / printable.widthPx));
     const normY = Math.max(0, Math.min(1, clientY / printable.heightPx));
 
-    // TAB 1: Source Framing Drag
-    if (activeTab === 'source' && onUpdateWorkingImage && workingImage && placedImageGeometry) {
-      const { left, top, width: w, height: h } = placedImageGeometry;
-      const handleSize = 14;
+    // TAB 1: Source View Drag Interaction
+    if (activeTab === 'source' && onUpdateWorkingImage && workingImage) {
+      if (sourceToolMode === 'transform' && placedImageGeometry) {
+        const { left, top, width: w, height: h } = placedImageGeometry;
+        const handleSize = 16;
 
-      // Handle corner detection
-      const isTL = Math.abs(clientX - left) < handleSize && Math.abs(clientY - top) < handleSize;
-      const isTR = Math.abs(clientX - (left + w)) < handleSize && Math.abs(clientY - top) < handleSize;
-      const isBL = Math.abs(clientX - left) < handleSize && Math.abs(clientY - (top + h)) < handleSize;
-      const isBR = Math.abs(clientX - (left + w)) < handleSize && Math.abs(clientY - (top + h)) < handleSize;
+        const isTL = Math.abs(clientX - left) < handleSize && Math.abs(clientY - top) < handleSize;
+        const isTR = Math.abs(clientX - (left + w)) < handleSize && Math.abs(clientY - top) < handleSize;
+        const isBL = Math.abs(clientX - left) < handleSize && Math.abs(clientY - (top + h)) < handleSize;
+        const isBR = Math.abs(clientX - (left + w)) < handleSize && Math.abs(clientY - (top + h)) < handleSize;
 
-      let mode: typeof sourceDragMode = 'none';
-      if (isTL) mode = 'scale-tl';
-      else if (isTR) mode = 'scale-tr';
-      else if (isBL) mode = 'scale-bl';
-      else if (isBR) mode = 'scale-br';
-      else if (clientX >= left && clientX <= left + w && clientY >= top && clientY <= top + h) {
-        mode = 'move';
-      }
+        let mode: typeof sourceDragMode = 'none';
+        if (isTL) mode = 'scale-tl';
+        else if (isTR) mode = 'scale-tr';
+        else if (isBL) mode = 'scale-bl';
+        else if (isBR) mode = 'scale-br';
+        else if (clientX >= left && clientX <= left + w && clientY >= top && clientY <= top + h) {
+          mode = 'move';
+        }
 
-      if (mode !== 'none') {
-        setSourceDragMode(mode);
-        setDragStartMouse({ x: clientX, y: clientY });
-        setDragInitialWorking(workingImage);
-        setLocalWorkingImage(workingImage);
-        e.preventDefault();
-        return;
+        if (mode !== 'none') {
+          setSourceDragMode(mode);
+          setDragStartMouse({ x: clientX, y: clientY });
+          setDragInitialWorking(workingImage);
+          setLocalWorkingImage(workingImage);
+          e.preventDefault();
+          return;
+        }
+      } else if (sourceToolMode === 'crop' && cropModeGeometry) {
+        const { cropBoxLeft: bx, cropBoxTop: by, cropBoxWidth: bw, cropBoxHeight: bh } = cropModeGeometry;
+        const hSize = 16;
+
+        const isTL = Math.abs(clientX - bx) < hSize && Math.abs(clientY - by) < hSize;
+        const isTR = Math.abs(clientX - (bx + bw)) < hSize && Math.abs(clientY - by) < hSize;
+        const isBL = Math.abs(clientX - bx) < hSize && Math.abs(clientY - (by + bh)) < hSize;
+        const isBR = Math.abs(clientX - (bx + bw)) < hSize && Math.abs(clientY - (by + bh)) < hSize;
+        const isT = Math.abs(clientY - by) < hSize && clientX >= bx && clientX <= bx + bw;
+        const isB = Math.abs(clientY - (by + bh)) < hSize && clientX >= bx && clientX <= bx + bw;
+        const isL = Math.abs(clientX - bx) < hSize && clientY >= by && clientY <= by + bh;
+        const isR = Math.abs(clientX - (bx + bw)) < hSize && clientY >= by && clientY <= by + bh;
+
+        let mode: typeof sourceDragMode = 'none';
+        if (isTL) mode = 'crop-tl';
+        else if (isTR) mode = 'crop-tr';
+        else if (isBL) mode = 'crop-bl';
+        else if (isBR) mode = 'crop-br';
+        else if (isT) mode = 'crop-t';
+        else if (isB) mode = 'crop-b';
+        else if (isL) mode = 'crop-l';
+        else if (isR) mode = 'crop-r';
+        else if (clientX >= bx && clientX <= bx + bw && clientY >= by && clientY <= by + bh) {
+          mode = 'crop-move';
+        }
+
+        if (mode !== 'none') {
+          setSourceDragMode(mode);
+          setDragStartMouse({ x: clientX, y: clientY });
+          setDragInitialWorking(workingImage);
+          setLocalWorkingImage(workingImage);
+          e.preventDefault();
+          return;
+        }
       }
     }
 
@@ -298,8 +424,8 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       const normX = Math.max(0, Math.min(1, clientX / printable.widthPx));
       const normY = Math.max(0, Math.min(1, clientY / printable.heightPx));
 
-      // TAB 1: Source Framing Drag Updates
-      if (activeTab === 'source' && sourceDragMode !== 'none' && dragStartMouse && dragInitialWorking && placedImageGeometry) {
+      // TAB 1: Source Move & Scaling Drag Updates
+      if (activeTab === 'source' && sourceDragMode !== 'none' && dragStartMouse && dragInitialWorking) {
         const dx = clientX - dragStartMouse.x;
         const dy = clientY - dragStartMouse.y;
 
@@ -311,7 +437,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
               y: Math.round(dragInitialWorking.position.y + dy),
             },
           });
-        } else if (sourceDragMode.startsWith('scale')) {
+        } else if (sourceDragMode.startsWith('scale') && placedImageGeometry) {
           const { baseW, baseH } = placedImageGeometry;
           const initScale = dragInitialWorking.scaleX;
           const initW = baseW * initScale;
@@ -319,44 +445,40 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
           const initCenterX = printable.widthPx / 2 + dragInitialWorking.position.x;
           const initCenterY = printable.heightPx / 2 + dragInitialWorking.position.y;
 
-          // Compute fixed anchor corner (opposite to dragged handle)
           let anchorX = initCenterX;
           let anchorY = initCenterY;
           let signX = 1;
           let signY = 1;
 
           if (sourceDragMode === 'scale-br') {
-            anchorX = initCenterX - initW / 2; // Fixed TL
+            anchorX = initCenterX - initW / 2;
             anchorY = initCenterY - initH / 2;
             signX = 1;
             signY = 1;
           } else if (sourceDragMode === 'scale-tl') {
-            anchorX = initCenterX + initW / 2; // Fixed BR
+            anchorX = initCenterX + initW / 2;
             anchorY = initCenterY + initH / 2;
             signX = -1;
             signY = -1;
           } else if (sourceDragMode === 'scale-tr') {
-            anchorX = initCenterX - initW / 2; // Fixed BL
+            anchorX = initCenterX - initW / 2;
             anchorY = initCenterY + initH / 2;
             signX = 1;
             signY = -1;
           } else if (sourceDragMode === 'scale-bl') {
-            anchorX = initCenterX + initW / 2; // Fixed TR
+            anchorX = initCenterX + initW / 2;
             anchorY = initCenterY - initH / 2;
             signX = -1;
             signY = 1;
           }
 
-          // Vector from fixed anchor along handle diagonal
           const diagVecX = baseW * signX;
           const diagVecY = baseH * signY;
           const diagLenSq = diagVecX * diagVecX + diagVecY * diagVecY;
 
-          // Mouse vector from fixed anchor
           const mouseVecX = clientX - anchorX;
           const mouseVecY = clientY - anchorY;
 
-          // Project mouse vector onto diagonal to determine exact proportional scale
           const dot = mouseVecX * diagVecX + mouseVecY * diagVecY;
           const newScale = Math.max(0.05, Math.min(10.0, Math.round((dot / diagLenSq) * 100) / 100));
 
@@ -377,6 +499,69 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
               y: Math.round(newPosY),
             },
           });
+        } else if (sourceDragMode.startsWith('crop') && cropModeGeometry) {
+          const { fitWidth, fitHeight, srcW, srcH } = cropModeGeometry;
+          const initCrop = dragInitialWorking.crop?.geometry || { x: 0, y: 0, width: srcW, height: srcH };
+          const scaleToSrcX = srcW / Math.max(1, fitWidth);
+          const scaleToSrcY = srcH / Math.max(1, fitHeight);
+
+          const srcDx = dx * scaleToSrcX;
+          const srcDy = dy * scaleToSrcY;
+
+          let newX = initCrop.x;
+          let newY = initCrop.y;
+          let newW = initCrop.width;
+          let newH = initCrop.height;
+
+          if (sourceDragMode === 'crop-move') {
+            newX = Math.max(0, Math.min(srcW - newW, Math.round(initCrop.x + srcDx)));
+            newY = Math.max(0, Math.min(srcH - newH, Math.round(initCrop.y + srcDy)));
+          } else if (sourceDragMode === 'crop-br') {
+            newW = Math.max(30, Math.min(srcW - initCrop.x, Math.round(initCrop.width + srcDx)));
+            newH = Math.max(30, Math.min(srcH - initCrop.y, Math.round(initCrop.height + srcDy)));
+          } else if (sourceDragMode === 'crop-tl') {
+            const maxX = initCrop.x + initCrop.width - 30;
+            const maxY = initCrop.y + initCrop.height - 30;
+            newX = Math.max(0, Math.min(maxX, Math.round(initCrop.x + srcDx)));
+            newY = Math.max(0, Math.min(maxY, Math.round(initCrop.y + srcDy)));
+            newW = (initCrop.x + initCrop.width) - newX;
+            newH = (initCrop.y + initCrop.height) - newY;
+          } else if (sourceDragMode === 'crop-tr') {
+            const maxY = initCrop.y + initCrop.height - 30;
+            newY = Math.max(0, Math.min(maxY, Math.round(initCrop.y + srcDy)));
+            newW = Math.max(30, Math.min(srcW - initCrop.x, Math.round(initCrop.width + srcDx)));
+            newH = (initCrop.y + initCrop.height) - newY;
+          } else if (sourceDragMode === 'crop-bl') {
+            const maxX = initCrop.x + initCrop.width - 30;
+            newX = Math.max(0, Math.min(maxX, Math.round(initCrop.x + srcDx)));
+            newW = (initCrop.x + initCrop.width) - newX;
+            newH = Math.max(30, Math.min(srcH - initCrop.y, Math.round(initCrop.height + srcDy)));
+          } else if (sourceDragMode === 'crop-t') {
+            const maxY = initCrop.y + initCrop.height - 30;
+            newY = Math.max(0, Math.min(maxY, Math.round(initCrop.y + srcDy)));
+            newH = (initCrop.y + initCrop.height) - newY;
+          } else if (sourceDragMode === 'crop-b') {
+            newH = Math.max(30, Math.min(srcH - initCrop.y, Math.round(initCrop.height + srcDy)));
+          } else if (sourceDragMode === 'crop-l') {
+            const maxX = initCrop.x + initCrop.width - 30;
+            newX = Math.max(0, Math.min(maxX, Math.round(initCrop.x + srcDx)));
+            newW = (initCrop.x + initCrop.width) - newX;
+          } else if (sourceDragMode === 'crop-r') {
+            newW = Math.max(30, Math.min(srcW - initCrop.x, Math.round(initCrop.width + srcDx)));
+          }
+
+          setLocalWorkingImage({
+            ...dragInitialWorking,
+            crop: {
+              type: 'rectangle',
+              geometry: {
+                x: newX,
+                y: newY,
+                width: newW,
+                height: newH,
+              },
+            },
+          });
         }
         return;
       }
@@ -387,7 +572,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       }
     };
 
-    const handleWindowMouseUp = (e: MouseEvent) => {
+    const handleWindowMouseUp = () => {
       // TAB 1: Commit Source Framing Drag
       if (activeTab === 'source' && sourceDragMode !== 'none') {
         if (localWorkingImage && onUpdateWorkingImage) {
@@ -404,12 +589,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       if (activeTool === 'bridge' && bridgeStart && targetLayerId && onApplyBridgeStroke) {
         const rect = pageFrameRef.current?.getBoundingClientRect();
         if (rect) {
-          const clientX = (e.clientX - rect.left) / zoom;
-          const clientY = (e.clientY - rect.top) / zoom;
-          const normX = Math.max(0, Math.min(1, clientX / printable.widthPx));
-          const normY = Math.max(0, Math.min(1, clientY / printable.heightPx));
-
-          onApplyBridgeStroke(targetLayerId, bridgeStart.x, bridgeStart.y, normX, normY, bridgeWidthMm);
+          onApplyBridgeStroke(targetLayerId, bridgeStart.x, bridgeStart.y, bridgeCurrent?.x || bridgeStart.x, bridgeCurrent?.y || bridgeStart.y, bridgeWidthMm);
         }
         setBridgeStart(null);
         setBridgeCurrent(null);
@@ -425,11 +605,13 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
   }, [
     sourceDragMode,
     bridgeStart,
+    bridgeCurrent,
     activeTab,
     activeTool,
     dragStartMouse,
     dragInitialWorking,
     placedImageGeometry,
+    cropModeGeometry,
     localWorkingImage,
     onUpdateWorkingImage,
     onApplyBridgeStroke,
@@ -546,7 +728,6 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
         {/* SVG Filter Shaders & Definitions */}
         <svg className="absolute w-0 h-0 pointer-events-none" aria-hidden="true">
           <defs>
-            {/* Hot-Press Bristol Paper Shader */}
             <filter id="paper-texture-bristol" x="0%" y="0%" width="100%" height="100%">
               <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="3" result="noise" />
               <feColorMatrix
@@ -558,7 +739,6 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
               <feComposite in="grayNoise" in2="SourceAlpha" operator="in" />
             </filter>
 
-            {/* Cold-Press Watercolor Rag Shader */}
             <filter id="paper-texture-watercolor" x="0%" y="0%" width="100%" height="100%">
               <feTurbulence type="fractalNoise" baseFrequency="0.045 0.075" numOctaves="4" result="noise" />
               <feDiffuseLighting in="noise" lightingColor="#ffffff" surfaceScale="2.2" diffuseConstant="1.2" result="light">
@@ -569,14 +749,14 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
           </defs>
         </svg>
 
-        {/* Statically Adhered Physical Canvas Sheet (shrink-0 preserves aspect ratio) */}
+        {/* Statically Adhered Physical Canvas Sheet */}
         <div
           ref={pageFrameRef}
           onMouseDown={handleSheetMouseDown}
           onContextMenu={e => e.preventDefault()}
           className={`print-target-page transition-transform duration-75 ease-out shadow-2xl relative bg-sand-50 rounded-sm border border-sand-400/40 overflow-hidden shrink-0 ${
             activeTab === 'source'
-              ? (sourceDragMode === 'move' ? 'cursor-grabbing' : 'cursor-grab')
+              ? (sourceDragMode !== 'none' ? 'cursor-grabbing' : 'cursor-default')
               : (activeTool === 'wand' ? 'cursor-crosshair' : activeTool === 'bridge' ? 'cursor-cell' : 'cursor-default')
           }`}
           style={{
@@ -586,12 +766,12 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
             transformOrigin: 'center center',
           }}
         >
-          {/* TAB 1: Source Image with Interactive Framing & Placement */}
+          {/* TAB 1: Source Image View (Transform Mode vs Crop Mode) */}
           {activeTab === 'source' && (
             <div className="w-full h-full relative overflow-hidden bg-moss-900/10">
-              {sourceImage?.dataUrl && placedImageGeometry ? (
+              {sourceToolMode === 'transform' && sourceImage?.dataUrl && placedImageGeometry && (
                 <>
-                  {/* Positioned and Scaled Source Image */}
+                  {/* Positioned and Scaled Cropped Source Image */}
                   <img
                     src={sourceImage.dataUrl}
                     alt="Source Input"
@@ -607,9 +787,9 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
                     }}
                   />
 
-                  {/* Interactive Transform Bounding Box with Corner & Edge Handles */}
+                  {/* Interactive Transform Bounding Box with Corner Handles */}
                   <div
-                    className="absolute border-2 border-emerald-400/80 shadow-sm pointer-events-none z-30 max-w-none max-h-none"
+                    className="absolute border-2 border-emerald-400/80 shadow-sm pointer-events-none z-30 max-w-none max-h-none cursor-grab"
                     style={{
                       left: `${placedImageGeometry.left}px`,
                       top: `${placedImageGeometry.top}px`,
@@ -620,18 +800,108 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
                     }}
                   >
                     {/* Center Move Anchor Crosshair */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 p-1.5 rounded-full bg-moss-950/80 border border-emerald-400 text-emerald-300 pointer-events-none opacity-80">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 p-1.5 rounded-full bg-moss-950/80 border border-emerald-400 text-emerald-300 pointer-events-none opacity-80 shadow-md">
                       <Move className="w-3.5 h-3.5" />
                     </div>
 
                     {/* 4 Corner Resize Handles */}
-                    <div className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 bg-emerald-400 border border-moss-950 rounded-sm cursor-nwse-resize pointer-events-auto" />
-                    <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-emerald-400 border border-moss-950 rounded-sm cursor-nesw-resize pointer-events-auto" />
-                    <div className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 bg-emerald-400 border border-moss-950 rounded-sm cursor-nesw-resize pointer-events-auto" />
-                    <div className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-emerald-400 border border-moss-950 rounded-sm cursor-nwse-resize pointer-events-auto" />
+                    <div className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 bg-emerald-400 border border-moss-950 rounded-sm cursor-nwse-resize pointer-events-auto shadow-sm" />
+                    <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-emerald-400 border border-moss-950 rounded-sm cursor-nesw-resize pointer-events-auto shadow-sm" />
+                    <div className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 bg-emerald-400 border border-moss-950 rounded-sm cursor-nesw-resize pointer-events-auto shadow-sm" />
+                    <div className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-emerald-400 border border-moss-950 rounded-sm cursor-nwse-resize pointer-events-auto shadow-sm" />
                   </div>
                 </>
-              ) : (
+              )}
+
+              {/* Crop Mode Overlay & Interactive Crop Boundary Box */}
+              {sourceToolMode === 'crop' && sourceImage?.dataUrl && cropModeGeometry && (
+                <>
+                  {/* Full Uncropped Source Image Fitted into Sheet */}
+                  <img
+                    src={sourceImage.dataUrl}
+                    alt="Source Input for Crop"
+                    className="absolute pointer-events-none select-none max-w-none max-h-none opacity-85"
+                    style={{
+                      left: `${cropModeGeometry.fitLeft}px`,
+                      top: `${cropModeGeometry.fitTop}px`,
+                      width: `${cropModeGeometry.fitWidth}px`,
+                      height: `${cropModeGeometry.fitHeight}px`,
+                      maxWidth: 'none',
+                      maxHeight: 'none',
+                      objectFit: 'fill',
+                    }}
+                  />
+
+                  {/* Darkened Vignette Outside Active Crop Window */}
+                  <div
+                    className="absolute bg-black/60 pointer-events-none z-20"
+                    style={{
+                      left: `${cropModeGeometry.fitLeft}px`,
+                      top: `${cropModeGeometry.fitTop}px`,
+                      width: `${cropModeGeometry.fitWidth}px`,
+                      height: `${Math.max(0, cropModeGeometry.cropBoxTop - cropModeGeometry.fitTop)}px`,
+                    }}
+                  />
+                  <div
+                    className="absolute bg-black/60 pointer-events-none z-20"
+                    style={{
+                      left: `${cropModeGeometry.fitLeft}px`,
+                      top: `${cropModeGeometry.cropBoxTop + cropModeGeometry.cropBoxHeight}px`,
+                      width: `${cropModeGeometry.fitWidth}px`,
+                      height: `${Math.max(0, (cropModeGeometry.fitTop + cropModeGeometry.fitHeight) - (cropModeGeometry.cropBoxTop + cropModeGeometry.cropBoxHeight))}px`,
+                    }}
+                  />
+                  <div
+                    className="absolute bg-black/60 pointer-events-none z-20"
+                    style={{
+                      left: `${cropModeGeometry.fitLeft}px`,
+                      top: `${cropModeGeometry.cropBoxTop}px`,
+                      width: `${Math.max(0, cropModeGeometry.cropBoxLeft - cropModeGeometry.fitLeft)}px`,
+                      height: `${cropModeGeometry.cropBoxHeight}px`,
+                    }}
+                  />
+                  <div
+                    className="absolute bg-black/60 pointer-events-none z-20"
+                    style={{
+                      left: `${cropModeGeometry.cropBoxLeft + cropModeGeometry.cropBoxWidth}px`,
+                      top: `${cropModeGeometry.cropBoxTop}px`,
+                      width: `${Math.max(0, (cropModeGeometry.fitLeft + cropModeGeometry.fitWidth) - (cropModeGeometry.cropBoxLeft + cropModeGeometry.cropBoxWidth))}px`,
+                      height: `${cropModeGeometry.cropBoxHeight}px`,
+                    }}
+                  />
+
+                  {/* Active Crop Box with Rule of Thirds Grid and Handles */}
+                  <div
+                    className="absolute border border-emerald-400 shadow-2xl z-30 pointer-events-none cursor-move"
+                    style={{
+                      left: `${cropModeGeometry.cropBoxLeft}px`,
+                      top: `${cropModeGeometry.cropBoxTop}px`,
+                      width: `${cropModeGeometry.cropBoxWidth}px`,
+                      height: `${cropModeGeometry.cropBoxHeight}px`,
+                    }}
+                  >
+                    {/* Rule of Thirds Grid Lines */}
+                    <div className="absolute left-1/3 top-0 bottom-0 w-px border-l border-dashed border-emerald-400/40" />
+                    <div className="absolute left-2/3 top-0 bottom-0 w-px border-l border-dashed border-emerald-400/40" />
+                    <div className="absolute top-1/3 left-0 right-0 h-px border-t border-dashed border-emerald-400/40" />
+                    <div className="absolute top-2/3 left-0 right-0 h-px border-t border-dashed border-emerald-400/40" />
+
+                    {/* Corner L-Bracket Handles */}
+                    <div className="absolute -top-2 -left-2 w-5 h-5 border-t-3 border-l-3 border-emerald-400 cursor-nwse-resize pointer-events-auto" />
+                    <div className="absolute -top-2 -right-2 w-5 h-5 border-t-3 border-r-3 border-emerald-400 cursor-nesw-resize pointer-events-auto" />
+                    <div className="absolute -bottom-2 -left-2 w-5 h-5 border-b-3 border-l-3 border-emerald-400 cursor-nesw-resize pointer-events-auto" />
+                    <div className="absolute -bottom-2 -right-2 w-5 h-5 border-b-3 border-r-3 border-emerald-400 cursor-nwse-resize pointer-events-auto" />
+
+                    {/* Midpoint Edge Handles */}
+                    <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-7 h-2 bg-emerald-400 rounded-sm cursor-ns-resize pointer-events-auto shadow" />
+                    <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-7 h-2 bg-emerald-400 rounded-sm cursor-ns-resize pointer-events-auto shadow" />
+                    <div className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-2 h-7 bg-emerald-400 rounded-sm cursor-ew-resize pointer-events-auto shadow" />
+                    <div className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-2 h-7 bg-emerald-400 rounded-sm cursor-ew-resize pointer-events-auto shadow" />
+                  </div>
+                </>
+              )}
+
+              {!sourceImage?.dataUrl && (
                 <div className="w-full h-full flex items-center justify-center text-sand-400 text-xs">
                   No image loaded
                 </div>
@@ -666,7 +936,6 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
                   viewBox={`0 0 ${viewW} ${viewH}`}
                   className="w-full h-full"
                 >
-                  {/* Layer Cut Shape */}
                   {vectorResults.get(selectedLayer.id)?.pathData && (
                     <path
                       d={vectorResults.get(selectedLayer.id)!.pathData}
@@ -694,7 +963,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
                 {sortedLayers.map(layer => {
                   const isBase = layer.order === 0;
                   const isVoid = isBase && layer.isSolidBacking === false;
-                  if (isVoid) return null; // Void foundation is completely transparent / omitted
+                  if (isVoid) return null;
 
                   const vec = vectorResults.get(layer.id);
                   if (!vec || !vec.pathData) return null;
@@ -727,7 +996,6 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
                       id={`sheet-${layer.id}`}
                       style={{ filter: filterStyle }}
                     >
-                      {/* Base Cardstock Sheet */}
                       <path
                         d={vec.pathData}
                         fill={layer.swatch.hex}
@@ -736,7 +1004,6 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
                         strokeWidth="0.5"
                       />
 
-                      {/* Tactile Paper Grain Overlay */}
                       {paperTexture !== 'none' && textureStrength > 0 && (
                         <path
                           d={vec.pathData}
@@ -792,7 +1059,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
             </svg>
           )}
 
-          {/* Overlaid Margin Guide (z-index: 40 on top of image and cut paths) */}
+          {/* Overlaid Margin Guide */}
           <div
             className="absolute border border-dashed border-sand-400/50 pointer-events-none z-40 print-hide"
             style={{
@@ -805,90 +1072,218 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
         </div>
       </div>
 
-      {/* Floating Source Framing & Revert Controls HUD (Visible in Source View Tab) */}
-      {activeTab === 'source' && workingImage && placedImageGeometry && (
-        <div className="floating-toolbar absolute top-14 left-1/2 -translate-x-1/2 z-30 p-1.5 px-2.5 rounded-xl bg-moss-950/90 border border-sand-400/25 backdrop-blur-md shadow-2xl flex items-center gap-2.5 text-xs text-sand-200 print-hide">
-          <div className="flex items-center gap-1">
-            <span className="text-[11px] font-gorton uppercase text-sand-400 mr-1">Framing:</span>
-
-            {/* Fit to Margins */}
+      {/* Floating Source View Toolbar (Move/Scale vs Crop Tool HUD) */}
+      {activeTab === 'source' && workingImage && (
+        <div className="floating-toolbar absolute top-14 left-1/2 -translate-x-1/2 z-30 p-1.5 px-3 rounded-xl bg-moss-950/90 border border-sand-400/25 backdrop-blur-md shadow-2xl flex items-center gap-2.5 text-xs text-sand-200 print-hide">
+          {/* Tool Mode Switcher: Transform (V) vs Crop (C) */}
+          <div className="flex items-center gap-1 p-0.5 rounded-lg bg-moss-900 border border-sand-400/20">
             <button
               type="button"
-              onClick={() => {
-                onUpdateWorkingImage?.(prev => ({
-                  ...prev,
-                  scaleX: 1.0,
-                  scaleY: 1.0,
-                  position: { x: 0, y: 0 },
-                }));
-              }}
-              className="px-2 py-1 rounded bg-moss-900 hover:bg-moss-800 border border-sand-400/20 text-[11px] font-medium transition flex items-center gap-1"
-              title="Fit within printable margins (Contain)"
+              onClick={() => setSourceToolMode('transform')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium transition ${
+                sourceToolMode === 'transform'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-sand-400 hover:text-sand-200'
+              }`}
+              title="Transform & Pan (V)"
             >
-              <Minimize2 className="w-3 h-3 text-emerald-400" />
-              <span>Fit</span>
+              <Move className="w-3.5 h-3.5" />
+              <span>Transform</span>
             </button>
 
-            {/* Fill Sheet (Cover) */}
             <button
               type="button"
-              onClick={() => {
-                onUpdateWorkingImage?.(prev => ({
-                  ...prev,
-                  scaleX: Math.round(placedImageGeometry.coverScale * 100) / 100,
-                  scaleY: Math.round(placedImageGeometry.coverScale * 100) / 100,
-                  position: { x: 0, y: 0 },
-                }));
-              }}
-              className="px-2 py-1 rounded bg-moss-900 hover:bg-moss-800 border border-sand-400/20 text-[11px] font-medium transition flex items-center gap-1"
-              title="Fill sheet to margins without letterboxing (Cover)"
+              onClick={() => setSourceToolMode('crop')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium transition ${
+                sourceToolMode === 'crop'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-sand-400 hover:text-sand-200'
+              }`}
+              title="Crop Tool (C)"
             >
-              <Maximize2 className="w-3 h-3 text-emerald-400" />
-              <span>Fill</span>
-            </button>
-
-            {/* Center Alignment */}
-            <button
-              type="button"
-              onClick={() => {
-                onUpdateWorkingImage?.(prev => ({
-                  ...prev,
-                  position: { x: 0, y: 0 },
-                }));
-              }}
-              className="px-2 py-1 rounded bg-moss-900 hover:bg-moss-800 border border-sand-400/20 text-[11px] font-medium transition flex items-center gap-1"
-              title="Center image position (0, 0)"
-            >
-              <Move className="w-3 h-3 text-sand-400" />
-              <span>Center</span>
+              <Crop className="w-3.5 h-3.5" />
+              <span>Crop</span>
             </button>
           </div>
 
           <div className="w-px h-4 bg-sand-400/20" />
 
-          {/* Scale Slider */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] text-sand-400 font-mono">Scale:</span>
-            <input
-              type="range"
-              min="0.25"
-              max="3.0"
-              step="0.05"
-              value={workingImage.scaleX}
-              onChange={e => {
-                const val = parseFloat(e.target.value);
-                onUpdateWorkingImage?.(prev => ({
-                  ...prev,
-                  scaleX: val,
-                  scaleY: val,
-                }));
-              }}
-              className="w-20 accent-emerald-400 h-1.5 bg-moss-900 rounded-lg cursor-pointer"
-            />
-            <span className="text-[11px] font-mono text-sand-300 w-10 text-right">
-              {Math.round(workingImage.scaleX * 100)}%
-            </span>
-          </div>
+          {/* Sub-Controls: TRANSFORM MODE */}
+          {sourceToolMode === 'transform' && placedImageGeometry && (
+            <>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onUpdateWorkingImage?.(prev => ({
+                      ...prev,
+                      scaleX: 1.0,
+                      scaleY: 1.0,
+                      position: { x: 0, y: 0 },
+                    }));
+                  }}
+                  className="px-2 py-1 rounded bg-moss-900 hover:bg-moss-800 border border-sand-400/20 text-[11px] font-medium transition flex items-center gap-1"
+                  title="Fit within printable margins (Contain)"
+                >
+                  <Minimize2 className="w-3 h-3 text-emerald-400" />
+                  <span>Fit</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onUpdateWorkingImage?.(prev => ({
+                      ...prev,
+                      scaleX: Math.round(placedImageGeometry.coverScale * 100) / 100,
+                      scaleY: Math.round(placedImageGeometry.coverScale * 100) / 100,
+                      position: { x: 0, y: 0 },
+                    }));
+                  }}
+                  className="px-2 py-1 rounded bg-moss-900 hover:bg-moss-800 border border-sand-400/20 text-[11px] font-medium transition flex items-center gap-1"
+                  title="Fill sheet to margins without letterboxing (Cover)"
+                >
+                  <Maximize2 className="w-3 h-3 text-emerald-400" />
+                  <span>Fill</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onUpdateWorkingImage?.(prev => ({
+                      ...prev,
+                      position: { x: 0, y: 0 },
+                    }));
+                  }}
+                  className="px-2 py-1 rounded bg-moss-900 hover:bg-moss-800 border border-sand-400/20 text-[11px] font-medium transition flex items-center gap-1"
+                  title="Center image position (0, 0)"
+                >
+                  <Move className="w-3 h-3 text-sand-400" />
+                  <span>Center</span>
+                </button>
+              </div>
+
+              <div className="w-px h-4 bg-sand-400/20" />
+
+              {/* Scale Slider */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-sand-400 font-mono">Scale:</span>
+                <input
+                  type="range"
+                  min="0.25"
+                  max="3.0"
+                  step="0.05"
+                  value={workingImage.scaleX}
+                  onChange={e => {
+                    const val = parseFloat(e.target.value);
+                    onUpdateWorkingImage?.(prev => ({
+                      ...prev,
+                      scaleX: val,
+                      scaleY: val,
+                    }));
+                  }}
+                  className="w-20 accent-emerald-400 h-1.5 bg-moss-900 rounded-lg cursor-pointer"
+                />
+                <span className="text-[11px] font-mono text-sand-300 w-10 text-right">
+                  {Math.round(workingImage.scaleX * 100)}%
+                </span>
+              </div>
+            </>
+          )}
+
+          {/* Sub-Controls: CROP MODE */}
+          {sourceToolMode === 'crop' && cropModeGeometry && (
+            <>
+              {/* Aspect Ratio Presets */}
+              <div className="flex items-center gap-1">
+                {(['free', '1:1', '4:3', '16:9', 'original'] as const).map(preset => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => {
+                      setCropAspectPreset(preset);
+                      if (!sourceImage) return;
+                      const srcW = sourceImage.width;
+                      const srcH = sourceImage.height;
+
+                      let targetAspect = 1.0;
+                      if (preset === '1:1') targetAspect = 1.0;
+                      else if (preset === '4:3') targetAspect = 4 / 3;
+                      else if (preset === '16:9') targetAspect = 16 / 9;
+                      else if (preset === 'original') targetAspect = srcW / srcH;
+                      else return; // freeform
+
+                      let newW = srcW;
+                      let newH = srcW / targetAspect;
+                      if (newH > srcH) {
+                        newH = srcH;
+                        newW = srcH * targetAspect;
+                      }
+
+                      const newX = Math.round((srcW - newW) / 2);
+                      const newY = Math.round((srcH - newH) / 2);
+
+                      onUpdateWorkingImage?.(prev => ({
+                        ...prev,
+                        crop: {
+                          type: 'rectangle',
+                          geometry: {
+                            x: newX,
+                            y: newY,
+                            width: Math.round(newW),
+                            height: Math.round(newH),
+                          },
+                        },
+                      }));
+                    }}
+                    className={`px-2 py-0.5 rounded text-[10.5px] font-medium transition ${
+                      cropAspectPreset === preset
+                        ? 'bg-moss-800 text-emerald-300 border border-emerald-500/40'
+                        : 'bg-moss-900 text-sand-400 hover:text-sand-200 border border-sand-400/20'
+                    }`}
+                  >
+                    {preset === 'free' ? 'Free' : preset === 'original' ? 'Original' : preset}
+                  </button>
+                ))}
+              </div>
+
+              <div className="w-px h-4 bg-sand-400/20" />
+
+              {/* Reset Crop */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!sourceImage) return;
+                  onUpdateWorkingImage?.(prev => ({
+                    ...prev,
+                    crop: {
+                      type: 'rectangle',
+                      geometry: {
+                        x: 0,
+                        y: 0,
+                        width: sourceImage.width,
+                        height: sourceImage.height,
+                      },
+                    },
+                  }));
+                }}
+                className="px-2 py-1 rounded bg-moss-900 hover:bg-moss-800 border border-sand-400/20 text-[11px] font-medium text-sand-300 transition"
+                title="Reset crop window to full image"
+              >
+                Reset Crop
+              </button>
+
+              {/* Done / Apply Crop Button */}
+              <button
+                type="button"
+                onClick={() => setSourceToolMode('transform')}
+                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold transition flex items-center gap-1 shadow-sm"
+                title="Apply crop and return to transform framing (Enter)"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>Done</span>
+              </button>
+            </>
+          )}
 
           <div className="w-px h-4 bg-sand-400/20" />
 
@@ -908,7 +1303,6 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       {/* Floating Touchup & Bridge HUD Toolbar (Visible in both Layer View & 3D Composite Stack) */}
       {showTouchupHUD && (
         <div className="floating-toolbar absolute top-14 left-1/2 -translate-x-1/2 z-30 p-1.5 rounded-xl bg-moss-950/90 border border-sand-400/25 backdrop-blur-md shadow-2xl flex items-center gap-2 text-xs print-hide">
-          {/* Targeted Layer Chip & Quick Selector (In Composite View) */}
           {activeTab === 'composite' && (
             <div className="relative">
               <button
@@ -927,7 +1321,6 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
                 <ChevronDown className="w-3 h-3 text-sand-400" />
               </button>
 
-              {/* Layer Selection Dropdown Menu */}
               {isLayerDropdownOpen && (
                 <div className="absolute top-full mt-1.5 left-0 w-44 rounded-lg bg-moss-950 border border-sand-400/25 shadow-2xl p-1 z-50 space-y-0.5 max-h-48 overflow-y-auto">
                   {sortedLayers.map(l => (
@@ -959,7 +1352,6 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
             </div>
           )}
 
-          {/* Tool Mode Buttons */}
           <div className="flex items-center gap-1 border-l border-sand-400/20 pl-1.5">
             <button
               type="button"
@@ -1001,7 +1393,6 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
             </button>
           </div>
 
-          {/* Quick Context Hint */}
           {activeTool === 'wand' && (
             <span className="text-[10px] text-sand-400 px-1 border-l border-sand-400/20 hidden sm:inline">
               L-Click: Fill • R-Click/Ctrl: Erase
