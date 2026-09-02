@@ -134,16 +134,16 @@ export const LayerManagerPanel: React.FC<LayerManagerPanelProps> = ({
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="font-semibold text-sand-100 text-xs truncate">
-                        {isBase ? 'Base Foundation' : `Layer ${layer.order + 1}`}
+                        {isBase ? 'Layer 0 (Base)' : `Layer ${layer.order}`}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-[10px] text-sand-400 font-mono">
                       <span>{isBase && !isSolid ? 'TRANSPARENT' : layer.swatch.hex.toUpperCase()}</span>
-                      <span>•</span>
+                      <span className="text-sand-600">|</span>
                       <span>{isBase && isSolid ? '100% area' : `${coveragePct.toFixed(1)}% area`}</span>
                       {vec?.pathCount !== undefined && vec.pathCount > 0 && (
                         <>
-                          <span>•</span>
+                          <span className="text-sand-600">|</span>
                           <span>{vec.pathCount} paths</span>
                         </>
                       )}
@@ -151,14 +151,19 @@ export const LayerManagerPanel: React.FC<LayerManagerPanelProps> = ({
                   </div>
                 </div>
 
-                {/* Right controls: Reset button (if custom color), Solid/Void switch for Base, or Order arrows */}
+                {/* Right controls: Persistent Reset button, Solid/Void switch for Base, or Order arrows */}
                 <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
-                  {isCustomColor && (
+                  {!isBase && (
                     <button
                       type="button"
+                      disabled={!isCustomColor}
                       onClick={() => handleResetToComputed(layer.id, layer.swatch.computedHex!)}
-                      className="p-1 rounded text-sand-400 hover:text-emerald-400 hover:bg-moss-950 transition-colors"
-                      title={`Reset to computed centroid (${layer.swatch.computedHex!.toUpperCase()})`}
+                      className={`p-1 rounded transition-colors ${
+                        isCustomColor
+                          ? 'text-sand-400 hover:text-emerald-400 hover:bg-moss-950 cursor-pointer'
+                          : 'text-sand-700 opacity-20 pointer-events-none cursor-default'
+                      }`}
+                      title={isCustomColor ? `Reset to computed centroid (${layer.swatch.computedHex!.toUpperCase()})` : undefined}
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
                     </button>

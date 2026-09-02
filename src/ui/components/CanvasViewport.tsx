@@ -1084,7 +1084,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
 
       {/* Floating Source View Toolbar (Move/Scale vs Crop Tool HUD) */}
       {activeTab === 'source' && workingImage && (
-        <div className="floating-toolbar absolute top-14 left-1/2 -translate-x-1/2 z-30 p-1.5 px-3 rounded-xl bg-moss-950/90 border border-sand-400/25 backdrop-blur-md shadow-2xl flex items-center gap-2.5 text-xs text-sand-200 print-hide">
+        <div className="floating-toolbar absolute top-20 left-1/2 -translate-x-1/2 z-30 p-1.5 px-3 rounded-xl bg-moss-950/90 border border-sand-400/25 backdrop-blur-md shadow-2xl flex items-center gap-2.5 text-xs text-sand-200 print-hide">
           {/* Tool Mode Switcher: Transform (V) vs Crop (C) */}
           <div className="flex items-center gap-1 p-0.5 rounded-lg bg-moss-900 border border-sand-400/20">
             <button
@@ -1312,7 +1312,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
 
       {/* Floating Touchup & Bridge HUD Toolbar (Visible in both Layer View & 3D Composite Stack) */}
       {showTouchupHUD && (
-        <div className="floating-toolbar absolute top-14 left-1/2 -translate-x-1/2 z-30 p-1.5 rounded-xl bg-moss-950/90 border border-sand-400/25 backdrop-blur-md shadow-2xl flex items-center gap-2 text-xs print-hide">
+        <div className="floating-toolbar absolute top-20 left-1/2 -translate-x-1/2 z-30 p-1.5 rounded-xl bg-moss-950/90 border border-sand-400/25 backdrop-blur-md shadow-2xl flex items-center gap-2 text-xs print-hide">
           {activeTab === 'composite' && (
             <div className="relative">
               <button

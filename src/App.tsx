@@ -877,7 +877,6 @@ export const App: React.FC = () => {
           <CollapsibleSection
             title="Physical Color Sheets"
             icon={<Palette className="w-3.5 h-3.5 text-sand-400" />}
-            badge={`${state.layers.length}`}
             defaultExpanded={true}
           >
             <LayerManagerPanel

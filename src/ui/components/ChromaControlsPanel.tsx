@@ -104,6 +104,37 @@ export const ChromaControlsPanel: React.FC<ChromaControlsPanelProps> = ({
         </div>
       </div>
 
+      {/* Number of Colors (K) - Anchored at top of section */}
+      <div className="space-y-1.5 pt-2 border-t border-sand-400/10">
+        <div className="flex justify-between items-center text-[11px]">
+          <span className="text-sand-300 font-medium">Color Sheet Count (K)</span>
+          <span className="font-mono text-emerald-400 font-semibold px-2 py-0.5 rounded bg-moss-950/70 border border-sand-400/20">
+            {localColorCount} Colors
+          </span>
+        </div>
+        <input
+          type="range"
+          min="2"
+          max="10"
+          step="1"
+          value={localColorCount}
+          onChange={e => {
+            const count = parseInt(e.target.value, 10);
+            setLocalColorCount(count);
+            dispatchChange(s => ({ ...s, colorCount: count }));
+          }}
+          onPointerUp={e => {
+            const count = parseInt((e.target as HTMLInputElement).value, 10);
+            dispatchChange(s => ({ ...s, colorCount: count }), true);
+          }}
+        />
+        <div className="flex justify-between text-[10px] text-sand-400/80 px-0.5">
+          <span>2 (Minimal)</span>
+          <span>6 (Balanced)</span>
+          <span>10 (Rich)</span>
+        </div>
+      </div>
+
       {/* Clustering Engine Selector */}
       <div className="space-y-1.5 pt-2 border-t border-sand-400/10">
         <div className="flex justify-between items-center text-[11px]">
@@ -174,7 +205,7 @@ export const ChromaControlsPanel: React.FC<ChromaControlsPanelProps> = ({
           <input
             type="range"
             min="0.2"
-            max="3.0"
+            max="1.8"
             step="0.1"
             value={localLumaGamma}
             onChange={e => {
@@ -194,37 +225,6 @@ export const ChromaControlsPanel: React.FC<ChromaControlsPanelProps> = ({
           </div>
         </div>
       )}
-
-      {/* Number of Colors (K) */}
-      <div className="space-y-1.5 pt-2 border-t border-sand-400/10">
-        <div className="flex justify-between items-center text-[11px]">
-          <span className="text-sand-300 font-medium">Color Sheet Count (K)</span>
-          <span className="font-mono text-emerald-400 font-semibold px-2 py-0.5 rounded bg-moss-950/70 border border-sand-400/20">
-            {localColorCount} Colors
-          </span>
-        </div>
-        <input
-          type="range"
-          min="2"
-          max="10"
-          step="1"
-          value={localColorCount}
-          onChange={e => {
-            const count = parseInt(e.target.value, 10);
-            setLocalColorCount(count);
-            dispatchChange(s => ({ ...s, colorCount: count }));
-          }}
-          onPointerUp={e => {
-            const count = parseInt((e.target as HTMLInputElement).value, 10);
-            dispatchChange(s => ({ ...s, colorCount: count }), true);
-          }}
-        />
-        <div className="flex justify-between text-[10px] text-sand-400/80 px-0.5">
-          <span>2 (Minimal)</span>
-          <span>5 (Balanced)</span>
-          <span>10 (Rich)</span>
-        </div>
-      </div>
 
       {/* Primary Color Separation Controls */}
       <div className="space-y-3 pt-2 border-t border-sand-400/10">
@@ -253,8 +253,8 @@ export const ChromaControlsPanel: React.FC<ChromaControlsPanelProps> = ({
             }}
           />
           <div className="flex justify-between text-[10px] text-sand-400/80 px-0.5">
-            <span>◄ Graphic Hue (Colors)</span>
-            <span>Tonal Luma (Depth) ►</span>
+            <span>Graphic Hue (Colors)</span>
+            <span>Tonal Luma (Depth)</span>
           </div>
           <p className="text-[10px] text-sand-400/80 leading-relaxed">
             Balances solid color object silhouettes vs 3D photographic light and shadow depth.

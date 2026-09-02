@@ -258,7 +258,7 @@ export const PreferencesModal: React.FC<PreferencesModalProps> = ({
                       cookieConsentAccepted: e.target.checked,
                     }))
                   }
-                  className="w-4 h-4 mt-0.5 rounded text-emerald-600 bg-moss-950 border-sand-400/30 shrink-0"
+                  className="w-4 h-4 mt-0.5 rounded accent-amber-300 bg-moss-900 border-sand-400/30 shrink-0 cursor-pointer"
                 />
                 <div>
                   <div className="font-medium text-xs text-sand-100">Remember Settings Between Sessions</div>

@@ -11,8 +11,8 @@ export interface CutterPresetProfile {
 
 export const CUTTER_PRESETS: Record<CutterPreset, CutterPresetProfile> = {
   drag_knife: {
-    name: 'Drag-Knife (Cricut / Silhouette)',
-    description: 'Enforces wide structural bridges and continuous cuts to prevent mat snagging and tedious weeding.',
+    name: 'Blade / Drag-Knife',
+    description: 'Enforces wide structural bridges and continuous cut contours to prevent mat snagging and fragile tearing on blade cutters.',
     minSafeBridgeMm: 1.5,
     recommendedFrequencyMm: 4.0,
     recommendedBlendReachMm: 6.0,

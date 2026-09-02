@@ -337,7 +337,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                         type="checkbox"
                         checked={masterStrokeOnly}
                         onChange={e => setMasterStrokeOnly(e.target.checked)}
-                        className="w-3.5 h-3.5 accent-emerald-500 rounded"
+                        className="w-3.5 h-3.5 accent-amber-300 rounded bg-moss-900 border-sand-400/30 cursor-pointer"
                       />
                       <span>Stroke Cut Lines Only</span>
                     </label>
@@ -347,7 +347,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                         type="checkbox"
                         checked={masterMirror}
                         onChange={e => setMasterMirror(e.target.checked)}
-                        className="w-3.5 h-3.5 accent-emerald-500 rounded"
+                        className="w-3.5 h-3.5 accent-amber-300 rounded bg-moss-900 border-sand-400/30 cursor-pointer"
                       />
                       <span>Mirror (Plates / HTV Vinyl)</span>
                     </label>
@@ -382,7 +382,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                         type="checkbox"
                         checked={zipSolidBlack}
                         onChange={e => setZipSolidBlack(e.target.checked)}
-                        className="w-3.5 h-3.5 accent-amber-400 rounded"
+                        className="w-3.5 h-3.5 accent-amber-300 rounded bg-moss-900 border-sand-400/30 cursor-pointer"
                       />
                       <span>Solid Black Film Positives</span>
                     </label>
@@ -392,7 +392,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                         type="checkbox"
                         checked={zipMirror}
                         onChange={e => setZipMirror(e.target.checked)}
-                        className="w-3.5 h-3.5 accent-amber-400 rounded"
+                        className="w-3.5 h-3.5 accent-amber-300 rounded bg-moss-900 border-sand-400/30 cursor-pointer"
                       />
                       <span>Mirror (Plates / HTV Vinyl)</span>
                     </label>
@@ -427,7 +427,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                         type="checkbox"
                         checked={printShadows}
                         onChange={e => setPrintShadows(e.target.checked)}
-                        className="w-3.5 h-3.5 accent-sky-400 rounded"
+                        className="w-3.5 h-3.5 accent-amber-300 rounded bg-moss-900 border-sand-400/30 cursor-pointer"
                       />
                       <span>Drop Shadows</span>
                     </label>
@@ -437,7 +437,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                         type="checkbox"
                         checked={printTexture}
                         onChange={e => setPrintTexture(e.target.checked)}
-                        className="w-3.5 h-3.5 accent-sky-400 rounded"
+                        className="w-3.5 h-3.5 accent-amber-300 rounded bg-moss-900 border-sand-400/30 cursor-pointer"
                       />
                       <span>Paper Texture</span>
                     </label>
@@ -447,7 +447,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                         type="checkbox"
                         checked={printMirror}
                         onChange={e => setPrintMirror(e.target.checked)}
-                        className="w-3.5 h-3.5 accent-sky-400 rounded"
+                        className="w-3.5 h-3.5 accent-amber-300 rounded bg-moss-900 border-sand-400/30 cursor-pointer"
                       />
                       <span>Mirror (Plates)</span>
                     </label>
@@ -487,7 +487,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                       type="checkbox"
                       checked={includeShadows}
                       onChange={e => setIncludeShadows(e.target.checked)}
-                      className="w-3.5 h-3.5 accent-emerald-500 rounded"
+                      className="w-3.5 h-3.5 accent-amber-300 rounded bg-moss-900 border-sand-400/30 cursor-pointer"
                     />
                   </label>
 
@@ -498,7 +498,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                       type="checkbox"
                       checked={includePaperTexture}
                       onChange={e => setIncludePaperTexture(e.target.checked)}
-                      className="w-3.5 h-3.5 accent-emerald-500 rounded"
+                      className="w-3.5 h-3.5 accent-amber-300 rounded bg-moss-900 border-sand-400/30 cursor-pointer"
                     />
                   </label>
 
@@ -510,7 +510,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                       checked={transparentBg}
                       disabled={digitalFormat === 'jpeg'}
                       onChange={e => setTransparentBg(e.target.checked)}
-                      className="w-3.5 h-3.5 accent-emerald-500 rounded"
+                      className="w-3.5 h-3.5 accent-amber-300 rounded bg-moss-900 border-sand-400/30 cursor-pointer"
                     />
                   </label>
 

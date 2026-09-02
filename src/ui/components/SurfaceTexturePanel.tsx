@@ -35,7 +35,7 @@ export const SurfaceTexturePanel: React.FC<SurfaceTexturePanelProps> = ({
           type="checkbox"
           checked={config.enabled}
           onChange={e => onChange(prev => ({ ...prev, enabled: e.target.checked }))}
-          className="w-4 h-4 accent-emerald-600 cursor-pointer rounded"
+          className="w-4 h-4 accent-amber-300 cursor-pointer rounded bg-moss-900 border-sand-400/30"
         />
       </div>
 
@@ -62,7 +62,7 @@ export const SurfaceTexturePanel: React.FC<SurfaceTexturePanelProps> = ({
                     }`}
                   >
                     <div className="text-[11px] font-semibold">
-                      {p === 'drag_knife' ? 'Cricut' : p === 'laser' ? 'Laser' : 'Manual'}
+                      {p === 'drag_knife' ? 'Blade' : p === 'laser' ? 'Laser' : 'Manual'}
                     </div>
                   </button>
                 );

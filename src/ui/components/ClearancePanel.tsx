@@ -128,7 +128,7 @@ export const ClearancePanel: React.FC<ClearancePanelProps> = ({
 
         {/* Underlap Seam Bleed (Stacked Relief Mode) */}
         {settings.assemblyMode === 'stacked_relief' && (
-          <div className="space-y-1.5 pt-2 border-t border-sand-400/10">
+          <div className="space-y-1.5 pt-2">
             <div className="flex justify-between items-center text-[11px]">
               <span className="text-sand-300 font-medium">Underlap Seam Bleed</span>
               <span className="font-mono text-emerald-400 font-semibold px-2 py-0.5 rounded bg-moss-950/70 border border-sand-400/20">
