@@ -93,7 +93,7 @@ export const ClearancePanel: React.FC<ClearancePanelProps> = ({
             <span>10.0mm</span>
           </div>
           <p className="text-[10px] text-sand-400/80 leading-relaxed">
-            Eliminates fragile specks, islands, and skinny bridges narrower than your blade/laser cutting kerf.
+            Eliminates holes, islands, and bridges narrower than blade/laser cutting kerf.
           </p>
         </div>
 
@@ -122,7 +122,7 @@ export const ClearancePanel: React.FC<ClearancePanelProps> = ({
             }}
           />
           <p className="text-[10px] text-sand-400/80 leading-relaxed">
-            Organically fillets acute internal/external notches and smooths pixel staircasing into fluid papercraft curves.
+            Rounds sharp edges and smooths over pixelation.
           </p>
         </div>
 
@@ -152,7 +152,7 @@ export const ClearancePanel: React.FC<ClearancePanelProps> = ({
               }}
             />
             <p className="text-[10px] text-sand-400/80 leading-relaxed">
-              Dilates lower layers beneath upper sheets to prevent visible cut seams or alignment gaps.
+              Extends lower layers to prevent visible cut seams or alignment gaps.
             </p>
           </div>
         )}

@@ -19,7 +19,14 @@ export const SurfaceTexturePanel: React.FC<SurfaceTexturePanelProps> = ({
   };
 
   const handlePresetChange = (preset: CutterPreset) => {
-    onChange(prev => enforceCutterSafety({ ...prev, cutterPreset: preset }));
+    const profile = CUTTER_PRESETS[preset];
+    onChange(prev => enforceCutterSafety({
+      ...prev,
+      cutterPreset: preset,
+      bridgeWidthMm: profile ? profile.minSafeBridgeMm : prev.bridgeWidthMm,
+      frequencyMm: profile ? profile.recommendedFrequencyMm : prev.frequencyMm,
+      blendReachMm: profile ? profile.recommendedBlendReachMm : prev.blendReachMm,
+    }));
   };
 
   return (
@@ -206,11 +213,25 @@ export const SurfaceTexturePanel: React.FC<SurfaceTexturePanelProps> = ({
 
             {/* Pattern Angle */}
             <div className="space-y-1.5">
-              <div className="flex justify-between text-[11px]">
+              <div className="flex justify-between items-center text-[11px]">
                 <span className="text-sand-300 font-medium">Pattern Angle</span>
-                <span className="font-mono text-emerald-400 font-semibold px-2 py-0.5 rounded bg-moss-950/70 border border-sand-400/20">
-                  {config.angleDeg}°
-                </span>
+                <div className="flex items-center gap-0.5 font-mono text-emerald-400 font-semibold px-1.5 py-0.5 rounded bg-moss-950/70 border border-sand-400/20">
+                  <input
+                    type="number"
+                    min="0"
+                    max="360"
+                    value={config.angleDeg}
+                    onChange={e => {
+                      const val = parseInt(e.target.value, 10);
+                      onChange(prev => ({
+                        ...prev,
+                        angleDeg: isNaN(val) ? 0 : Math.max(0, Math.min(360, val)),
+                      }));
+                    }}
+                    className="w-8 bg-transparent text-right text-emerald-400 font-mono font-semibold focus:outline-none p-0 text-[11px]"
+                  />
+                  <span className="text-[11px]">°</span>
+                </div>
               </div>
               <input
                 type="range"

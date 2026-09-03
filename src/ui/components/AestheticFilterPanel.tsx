@@ -168,7 +168,7 @@ export const AestheticFilterPanel: React.FC<AestheticFilterPanelProps> = ({
 
           <div className="space-y-1.5">
             <div className="flex justify-between text-[11px]">
-              <span className="text-sand-300">Organic Jitter</span>
+              <span className="text-sand-300">Edge Jitter</span>
               <span className="font-mono text-sand-400">{localJitter}%</span>
             </div>
             <input
@@ -196,7 +196,7 @@ export const AestheticFilterPanel: React.FC<AestheticFilterPanelProps> = ({
           </div>
 
           <div className="pt-1 flex items-center justify-between">
-            <span className="text-[11px] text-sand-400">Random Seed #{filterState.voronoi.seed}</span>
+            <span className="text-[11px] text-sand-400">Jitter Seed #{filterState.voronoi.seed}</span>
             <button
               type="button"
               onClick={() => {

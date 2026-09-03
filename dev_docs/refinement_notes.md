@@ -4,18 +4,18 @@
 
 Toolbar Styling & UX(slider functionality tweaks in separate section)
 - clearance and filters: 
-    - clean up copy for less AI vibe and to reduce vertical height of the overall section.
+    - ~~clean up copy for less AI vibe and to reduce vertical height of the overall section.~~
     - ~~Remove bar above underlap seam bleed section. Maybe add~~
-    - consider unit toggle mm/in perhaps in settings modal rather than directly in this
+
 - surface textures & gradiants
     - restyle copy and checkbox for enable (maybe a button instead)
     - ~~Let's use Blade/Cut(I'll figure out best langauge) instead of brandname Cricut and adjust description copy~~
     - perhaps default bridge/spacing/etc to fit to match clearance setting, but then allow manual override
-    - keep discrete steps on slider for pattern angle, but allow manual entry of any value intot he degree label box
+    - ~~keep discrete steps on slider for pattern angle, but allow manual entry of any value intot he degree label box~~
     - after other refinements, see if it's still too busy, if so consider a modal or (hopefully not) a second toolbar
 - Canvas and Material Sizing
     - ~~get one source of truth for unit--should it be here or in settings or in settings but with a quick link button here? select 8.5 x 11 paper but use mm for actual drafting, etc.~~
-    - restyle the toggle to match the luma reference app-
+    - ~~restyle the toggle to match the luma reference app-~~
     - ~~make margin units dynamic~~ 
 - Chroma Separation and tolerances
     - lose the card for no. of colors and get the label to fit in one line
@@ -48,4 +48,6 @@ Engine parameter controls
 - heavy refinement of interlayer gradiants--also check feasibility of two modes-
     - check feasibility of using gradiant with preset pallets like cmyk for another effect
 
+Manual testing
+- come up with manual test cases for underlap Seam Bleed
 

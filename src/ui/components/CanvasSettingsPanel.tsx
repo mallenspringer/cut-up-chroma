@@ -1,7 +1,7 @@
 import React from 'react';
 import { CanvasSettings, LengthUnit } from '../../engine/types';
 import { convertUnit } from '../../engine/layout/canvasLayout';
-import { LayoutGrid, RotateCw } from 'lucide-react';
+import { RectangleVertical, RectangleHorizontal } from 'lucide-react';
 
 interface CanvasSettingsPanelProps {
   canvas: CanvasSettings;
@@ -10,18 +10,21 @@ interface CanvasSettingsPanelProps {
 
 const PRESETS: Array<{ name: string; width: number; height: number; unit: LengthUnit }> = [
   { name: 'Letter (8.5 × 11 in)', width: 8.5, height: 11, unit: 'in' },
+  { name: '11 × 14 in', width: 11, height: 14, unit: 'in' },
   { name: 'Square (12 × 12 in)', width: 12, height: 12, unit: 'in' },
-  { name: 'A4 (210 × 297 mm)', width: 210, height: 297, unit: 'mm' },
-  { name: 'A3 (297 × 420 mm)', width: 297, height: 420, unit: 'mm' },
-  { name: 'Compact (5 × 7 in)', width: 5, height: 7, unit: 'in' },
   { name: 'Small Square (8 × 8 in)', width: 8, height: 8, unit: 'in' },
+  { name: 'Compact (5 × 7 in)', width: 5, height: 7, unit: 'in' },
+  { name: 'A3 (297 × 420 mm)', width: 297, height: 420, unit: 'mm' },
+  { name: 'A4 (210 × 297 mm)', width: 210, height: 297, unit: 'mm' },
+  { name: 'A5 (148 × 210 mm)', width: 148, height: 210, unit: 'mm' },
+  { name: 'A6 (105 × 148 mm)', width: 105, height: 148, unit: 'mm' },
 ];
 
 export const CanvasSettingsPanel: React.FC<CanvasSettingsPanelProps> = ({ canvas, onChange }) => {
-  const toggleOrientation = () => {
+  const setOrientation = (target: 'portrait' | 'landscape') => {
+    if (canvas.orientation === target) return;
     onChange(prev => {
-      const nextOrientation = prev.orientation === 'portrait' ? 'landscape' : 'portrait';
-      const isNextLandscape = nextOrientation === 'landscape';
+      const isNextLandscape = target === 'landscape';
       const width = isNextLandscape
         ? Math.max(prev.width, prev.height)
         : Math.min(prev.width, prev.height);
@@ -33,7 +36,7 @@ export const CanvasSettingsPanel: React.FC<CanvasSettingsPanelProps> = ({ canvas
         ...prev,
         width,
         height,
-        orientation: nextOrientation,
+        orientation: target,
       };
     });
   };
@@ -153,7 +156,7 @@ export const CanvasSettingsPanel: React.FC<CanvasSettingsPanelProps> = ({ canvas
       {/* Margin & Orientation */}
       <div className="grid grid-cols-2 gap-2 pt-1">
         <div className="space-y-1">
-          <label className="text-[11px] text-sand-400">Border Margin ({canvas.unit})</label>
+          <label className="text-[11px] text-sand-400">Margin ({canvas.unit})</label>
           <input
             type="number"
             step={canvas.unit === 'in' ? '0.05' : canvas.unit === 'cm' ? '0.1' : '0.5'}
@@ -168,14 +171,34 @@ export const CanvasSettingsPanel: React.FC<CanvasSettingsPanelProps> = ({ canvas
         </div>
         <div className="space-y-1">
           <label className="text-[11px] text-sand-400">Orientation</label>
-          <button
-            type="button"
-            onClick={toggleOrientation}
-            className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded bg-moss-800/60 border border-sand-400/20 hover:border-sand-400/40 text-sand-200 capitalize transition-colors"
-          >
-            <RotateCw className="w-3.5 h-3.5 text-sand-400" />
-            <span>{canvas.orientation}</span>
-          </button>
+          <div className="grid grid-cols-2 gap-1 p-0.5 rounded-lg bg-moss-950/70 border border-sand-400/20">
+            <button
+              type="button"
+              onClick={() => setOrientation('portrait')}
+              className={`flex items-center justify-center gap-1.5 py-1 px-1 rounded text-[11px] font-medium transition ${
+                canvas.orientation === 'portrait'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-sand-400 hover:text-sand-200'
+              }`}
+              title="Portrait (Vertical)"
+            >
+              <RectangleVertical className="w-3.5 h-3.5" />
+              <span>Portrait</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setOrientation('landscape')}
+              className={`flex items-center justify-center gap-1.5 py-1 px-1 rounded text-[11px] font-medium transition ${
+                canvas.orientation === 'landscape'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-sand-400 hover:text-sand-200'
+              }`}
+              title="Landscape (Horizontal)"
+            >
+              <RectangleHorizontal className="w-3.5 h-3.5" />
+              <span>Landscape</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
