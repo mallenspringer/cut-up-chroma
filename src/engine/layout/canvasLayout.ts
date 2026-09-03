@@ -35,6 +35,17 @@ export function convertFromMm(valueMm: number, unit: LengthUnit): number {
 }
 
 /**
+ * Converts a length measurement between any two supported units (in, mm, cm).
+ * Preserves high precision and rounds cleanly to 2 decimal places.
+ */
+export function convertUnit(value: number, fromUnit: LengthUnit, toUnit: LengthUnit): number {
+  if (fromUnit === toUnit) return value;
+  const mm = convertToMm(value, fromUnit);
+  const converted = convertFromMm(mm, toUnit);
+  return Math.round(converted * 100) / 100;
+}
+
+/**
  * Converts physical unit value to screen pixels (at given DPI)
  */
 export function convertToPixels(value: number, unit: LengthUnit, dpi: number = DEFAULT_DPI): number {

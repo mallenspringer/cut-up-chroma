@@ -14,9 +14,9 @@ Toolbar Styling & UX(slider functionality tweaks in separate section)
     - keep discrete steps on slider for pattern angle, but allow manual entry of any value intot he degree label box
     - after other refinements, see if it's still too busy, if so consider a modal or (hopefully not) a second toolbar
 - Canvas and Material Sizing
-    - get one source of truth for unit--should it be here or in settings or in settings but with a quick link button here? select 8.5 x 11 paper but use mm for actual drafting, etc.
+    - ~~get one source of truth for unit--should it be here or in settings or in settings but with a quick link button here? select 8.5 x 11 paper but use mm for actual drafting, etc.~~
     - restyle the toggle to match the luma reference app-
-    - make margin units dynamic 
+    - ~~make margin units dynamic~~ 
 - Chroma Separation and tolerances
     - lose the card for no. of colors and get the label to fit in one line
     - engine titles for consistency (seems accent saliency is in reverse format from others)
