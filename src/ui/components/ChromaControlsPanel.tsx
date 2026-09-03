@@ -154,9 +154,9 @@ export const ChromaControlsPanel: React.FC<ChromaControlsPanelProps> = ({
           <option value="median_cut">Graphic Median Cut (Posterized)</option>
         </select>
         <p className="text-[10px] text-sand-400/80 leading-relaxed">
-          {currentAlgo === 'kmeans_pp' && 'Balanced statistical color centroids optimized in perceptual OKLab space.'}
+          {currentAlgo === 'kmeans_pp' && 'Evenly balances color accuracy across the entire image for natural photo separation.'}
           {currentAlgo === 'saliency' && 'Forces small, vivid accent colors into the palette instead of being swallowed by large backgrounds.'}
-          {currentAlgo === 'luma_ramp' && 'Equalizes lightness stratification across sheets for deep woodcarvings and shadowboxes.'}
+          {currentAlgo === 'luma_ramp' && 'Separates layers strictly by lightness from dark to light for carved topographical depth.'}
           {currentAlgo === 'median_cut' && 'Partitions color volume into crisp, bold graphic blocks suited for silkscreen styles.'}
         </p>
       </div>
@@ -257,7 +257,7 @@ export const ChromaControlsPanel: React.FC<ChromaControlsPanelProps> = ({
             <span>Tonal Luma (Depth)</span>
           </div>
           <p className="text-[10px] text-sand-400/80 leading-relaxed">
-            Balances solid color object silhouettes vs 3D photographic light and shadow depth.
+            Prioritize colorful shapes on the left, or highlight and shadow shading on the right.
           </p>
         </div>
 

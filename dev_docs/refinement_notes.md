@@ -18,11 +18,11 @@ Toolbar Styling & UX(slider functionality tweaks in separate section)
     - ~~restyle the toggle to match the luma reference app-~~
     - ~~make margin units dynamic~~ 
 - Chroma Separation and tolerances
-    - lose the card for no. of colors and get the label to fit in one line
+    - ~~lose the card for no. of colors and get the label to fit in one line~~
     - engine titles for consistency (seems accent saliency is in reverse format from others)
-    - rework engine descriptions to balance accuracy and approachability of description
+    - ~~rework engine descriptions to balance accuracy and approachability of description~~
     - ~~color sheet count moves depending on engine choice-- anchor that to (top?) of section~~
-    - rework copy of each slider for less AI vibe and balance of accuracy/layperson readability
+    - ~~rework copy of each slider for less AI vibe and balance of accuracy/layperson readability~~
     - ~~remove label arrows from color separation bias or add them to other eleemnts for consistency (probably remove)~~
     - ~~tonal luma ramp dymamic range slider: values don't match labels (1.0 middle layer but 1.6 is middle slider placement value)~~
     - ~~misalignment of label and value for color sheet count too (5 in middle label vs 6 middle slider value)~~
@@ -30,11 +30,11 @@ Toolbar Styling & UX(slider functionality tweaks in separate section)
     - ~~number tag label in title is redundant with chroma sep. section's and the sub title~~
     - ~~too dynamic--bullets and path labels get moved when the reset button pops up--I think make reset persistent but grey/deactivated when not in use, rather than enforcing manual spacing~~
     - ~~not huge on the bullets as separators, maybe pipes, maybe rearrange into two label rows~~
-    - not huge on the blockiness of the two-row labeles, maybe just reduce spacing between lines of area and paths. Maybe realign all so that color block is aligned with the two-line labeles and layer title is above color swatch
-    - add grab and drag to layers to replace up and down arrows?
+    - ~~not huge on the blockiness of the two-row labeles, maybe just reduce spacing between lines of area and paths. Maybe realign all so that color block is aligned with the two-line labeles and layer title is above color swatch~~
+    - ~~add grab and drag to layers to replace up and down arrows?~~
     - ~~change layer order. Base is required and should be Layer 0 (Base) with numbering starting from there, 0-indexed~~
 - Advanced Channel Weights
-    - tweak luma contrast descriptive copy
+    - ~~tweak luma contrast descriptive copy~~
 - export and print
     - ~~different bg color for the registration checkbox-- a muted yellow/cream that compliments the green--incorporate that for all checkboxes~~
 - ~~popup bars for source, layer, composite, all need to be moved a bit so they don't obscure the view selection tabs~~
