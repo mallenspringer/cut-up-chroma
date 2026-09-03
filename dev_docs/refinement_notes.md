@@ -50,4 +50,9 @@ Engine parameter controls
 
 Manual testing
 - come up with manual test cases for underlap Seam Bleed
+- Testing for chroma floor algo and potential tweaking
+- Manual testing for texture/gradiant layers first to make sure engine is working properly before fine tuning the algos and effect
+
+
+- Filters are affecting quantized preview
 

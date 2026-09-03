@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ChromaLayerState, VectorLayerResult } from '../../engine/types';
-import { Layers, ArrowUp, ArrowDown, Palette, RotateCcw } from 'lucide-react';
+import { Layers, Palette, RotateCcw, GripVertical } from 'lucide-react';
 import { hexToOklab, hexToOklch } from '../../engine/chroma/oklab';
 
 interface LayerManagerPanelProps {
@@ -22,30 +22,73 @@ export const LayerManagerPanel: React.FC<LayerManagerPanelProps> = ({
   vectorResults,
   pixelPercentages = [],
 }) => {
+  const [draggedLayerId, setDraggedLayerId] = useState<string | null>(null);
+  const [dragOverLayerId, setDragOverLayerId] = useState<string | null>(null);
+
   // Sort layers from top of physical stack down to base
   // Top layer = highest order, Base = order 0
   const visualStack = [...layers].sort((a, b) => b.order - a.order);
 
-  const moveLayer = (id: string, direction: 'up' | 'down') => {
-    const sorted = [...layers].sort((a, b) => a.order - b.order);
-    const currentIndex = sorted.findIndex(l => l.id === id);
-    if (currentIndex === -1) return;
+  const handleDragStart = (e: React.DragEvent, layerId: string) => {
+    e.stopPropagation();
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', layerId);
+    setDraggedLayerId(layerId);
+  };
 
-    const targetIndex = direction === 'up' ? currentIndex + 1 : currentIndex - 1;
-    if (targetIndex < 0 || targetIndex >= sorted.length) return;
+  const handleDragOver = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverLayerId !== targetId) {
+      setDragOverLayerId(targetId);
+    }
+  };
 
-    // Swap order values
-    const newSorted = [...sorted];
-    const temp = newSorted[currentIndex];
-    newSorted[currentIndex] = newSorted[targetIndex];
-    newSorted[targetIndex] = temp;
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!draggedLayerId || draggedLayerId === targetId) {
+      setDraggedLayerId(null);
+      setDragOverLayerId(null);
+      return;
+    }
 
-    const reordered = newSorted.map((layer, index) => ({
+    const currentVisual = [...visualStack];
+    const fromIdx = currentVisual.findIndex(l => l.id === draggedLayerId);
+    let toIdx = currentVisual.findIndex(l => l.id === targetId);
+
+    if (fromIdx === -1 || toIdx === -1) {
+      setDraggedLayerId(null);
+      setDragOverLayerId(null);
+      return;
+    }
+
+    // Base layer (order 0) is always pinned at the bottom of visualStack
+    const baseIndex = currentVisual.length - 1;
+    if (toIdx === baseIndex) {
+      toIdx = baseIndex - 1; // Drop immediately above base
+    }
+
+    const reorderedVisual = [...currentVisual];
+    const [moved] = reorderedVisual.splice(fromIdx, 1);
+    reorderedVisual.splice(toIdx, 0, moved);
+
+    // Reassign orders: bottom item has order 0 (Base), top has order N-1
+    const total = reorderedVisual.length;
+    const newLayers = reorderedVisual.map((layer, vIdx) => ({
       ...layer,
-      order: index,
+      order: total - 1 - vIdx,
     }));
 
-    onReorderLayers(reordered);
+    onReorderLayers(newLayers);
+    setDraggedLayerId(null);
+    setDragOverLayerId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedLayerId(null);
+    setDragOverLayerId(null);
   };
 
   const handleColorChange = (layerId: string, newHex: string) => {
@@ -101,16 +144,25 @@ export const LayerManagerPanel: React.FC<LayerManagerPanelProps> = ({
           return (
             <div
               key={layer.id}
+              draggable={!isBase}
+              onDragStart={e => !isBase && handleDragStart(e, layer.id)}
+              onDragOver={e => handleDragOver(e, layer.id)}
+              onDrop={e => handleDrop(e, layer.id)}
+              onDragEnd={handleDragEnd}
               onClick={() => onSelectLayer(layer.id)}
-              className={`p-2.5 rounded-lg border transition-all cursor-pointer ${
-                isSelected
+              className={`p-2 rounded-lg border transition-all cursor-pointer ${
+                draggedLayerId === layer.id
+                  ? 'opacity-40 scale-[0.99] border-dashed border-emerald-400/60'
+                  : dragOverLayerId === layer.id
+                  ? 'border-emerald-400 bg-moss-800/90 ring-1 ring-emerald-400 shadow-md'
+                  : isSelected
                   ? 'border-emerald-400 bg-moss-800/80 shadow-md ring-1 ring-emerald-400/40'
                   : 'border-sand-400/20 bg-moss-900/60 hover:bg-moss-800/40 hover:border-sand-400/35'
               }`}
             >
               <div className="flex items-center justify-between gap-2">
                 {/* Left: Swatch picker & Label */}
-                <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
                   <div className="relative shrink-0 flex items-center justify-center">
                     <input
                       type="color"
@@ -131,13 +183,13 @@ export const LayerManagerPanel: React.FC<LayerManagerPanelProps> = ({
                     />
                   </div>
 
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 leading-tight">
                       <span className="font-semibold text-sand-100 text-xs truncate">
                         {isBase ? 'Layer 0 (Base)' : `Layer ${layer.order}`}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-[10px] text-sand-400 font-mono">
+                    <div className="flex items-center gap-1.5 text-[10px] text-sand-400 font-mono leading-tight whitespace-nowrap overflow-hidden">
                       <span>{isBase && !isSolid ? 'TRANSPARENT' : layer.swatch.hex.toUpperCase()}</span>
                       <span className="text-sand-600">|</span>
                       <span>{isBase && isSolid ? '100% area' : `${coveragePct.toFixed(1)}% area`}</span>
@@ -151,25 +203,32 @@ export const LayerManagerPanel: React.FC<LayerManagerPanelProps> = ({
                   </div>
                 </div>
 
-                {/* Right controls: Persistent Reset button, Solid/Void switch for Base, or Order arrows */}
-                <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
-                  {!isBase && (
-                    <button
-                      type="button"
-                      disabled={!isCustomColor}
-                      onClick={() => handleResetToComputed(layer.id, layer.swatch.computedHex!)}
-                      className={`p-1 rounded transition-colors ${
-                        isCustomColor
-                          ? 'text-sand-400 hover:text-emerald-400 hover:bg-moss-950 cursor-pointer'
-                          : 'text-sand-700 opacity-20 pointer-events-none cursor-default'
-                      }`}
-                      title={isCustomColor ? `Reset to computed centroid (${layer.swatch.computedHex!.toUpperCase()})` : undefined}
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                {/* Right controls: Persistent Reset button, Solid/Void switch for Base, or Drag handle */}
+                <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                  {!isBase ? (
+                    <>
+                      <button
+                        type="button"
+                        disabled={!isCustomColor}
+                        onClick={() => handleResetToComputed(layer.id, layer.swatch.computedHex!)}
+                        className={`p-1 rounded transition-colors ${
+                          isCustomColor
+                            ? 'text-sand-400 hover:text-emerald-400 hover:bg-moss-950 cursor-pointer'
+                            : 'text-sand-700 opacity-20 pointer-events-none cursor-default'
+                        }`}
+                        title={isCustomColor ? `Reset to computed centroid (${layer.swatch.computedHex!.toUpperCase()})` : undefined}
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      </button>
 
-                  {isBase ? (
+                      <div
+                        className="p-1 text-sand-500 hover:text-emerald-400 cursor-grab active:cursor-grabbing transition-colors"
+                        title="Drag to reorder layer in stack"
+                      >
+                        <GripVertical className="w-3.5 h-3.5" />
+                      </div>
+                    </>
+                  ) : (
                     <button
                       type="button"
                       onClick={() => onUpdateLayer(layer.id, prev => ({ ...prev, isSolidBacking: !isSolid }))}
@@ -182,27 +241,6 @@ export const LayerManagerPanel: React.FC<LayerManagerPanelProps> = ({
                     >
                       {isSolid ? 'Solid' : 'Void'}
                     </button>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        disabled={isTop}
-                        onClick={() => moveLayer(layer.id, 'up')}
-                        className="p-1 rounded text-sand-400 hover:text-sand-100 hover:bg-moss-900 disabled:opacity-25 transition-colors"
-                        title="Move Layer Higher in Stack"
-                      >
-                        <ArrowUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isBase}
-                        onClick={() => moveLayer(layer.id, 'down')}
-                        className="p-1 rounded text-sand-400 hover:text-sand-100 hover:bg-moss-900 disabled:opacity-25 transition-colors"
-                        title="Move Layer Lower in Stack"
-                      >
-                        <ArrowDown className="w-3.5 h-3.5" />
-                      </button>
-                    </>
                   )}
                 </div>
               </div>

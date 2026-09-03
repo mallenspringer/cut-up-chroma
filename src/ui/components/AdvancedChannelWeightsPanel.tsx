@@ -102,7 +102,7 @@ export const AdvancedChannelWeightsPanel: React.FC<AdvancedChannelWeightsPanelPr
           }}
         />
         <p className="text-[10px] text-sand-400/80 leading-relaxed">
-          Higher values separate deep shadows and highlights into distinct tonal relief sheets.
+          Higher values separate deep shadows and highlights into distinct sheets.
         </p>
       </div>
 
@@ -131,7 +131,7 @@ export const AdvancedChannelWeightsPanel: React.FC<AdvancedChannelWeightsPanelPr
           }}
         />
         <p className="text-[10px] text-sand-400/80 leading-relaxed">
-          Boosts sensitivity to muted, pastel, or low-saturation colors in washed-out photos.
+          Boosts sensitivity to muted, pastel, or low-saturation colors.
         </p>
       </div>
     </div>

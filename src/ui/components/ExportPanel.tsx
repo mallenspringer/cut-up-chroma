@@ -38,7 +38,7 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
         <div className="flex items-center justify-between p-2 bg-moss-950/70 rounded-lg border border-sand-400/20">
           <label htmlFor="reg-marks-toggle" className="flex items-center gap-2 font-medium text-sand-200 cursor-pointer text-xs">
             <Target className="w-4 h-4 text-amber-300 shrink-0" />
-            <span>Registration Marks (Corner Alignment)</span>
+            <span>Registration Marks</span>
           </label>
           <input
             id="reg-marks-toggle"

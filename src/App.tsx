@@ -840,7 +840,6 @@ export const App: React.FC = () => {
           <CollapsibleSection
             title="Chroma Separation & Tolerances"
             icon={<Sliders className="w-3.5 h-3.5 text-sand-400" />}
-            badge={`${state.processing.colorCount} Colors`}
             defaultExpanded={true}
           >
             <ChromaControlsPanel

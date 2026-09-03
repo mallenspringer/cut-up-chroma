@@ -286,7 +286,7 @@ export const ChromaControlsPanel: React.FC<ChromaControlsPanelProps> = ({
             }}
           />
           <p className="text-[10px] text-sand-400/80 leading-relaxed">
-            Suppresses stray rainbow specks in neutral shadows, backgrounds, and off-white paper.
+            Removes colorful specs in neutral shadows and backgrounds.
           </p>
         </div>
       </div>
