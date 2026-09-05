@@ -1,4 +1,4 @@
-import { BinaryMask, ChromaLayerState } from '../types';
+import { BinaryMask, ChromaLayerState, ChromaSwatch } from '../types';
 import { SurfaceTextureConfig } from './types';
 import { enforceCutterSafety } from './cutterPresets';
 
@@ -57,12 +57,16 @@ export function applySurfaceTexturing(
     .filter(item => item.index < numLayers && layerMasks[item.index]?.data)
     .sort((a, b) => a.order - b.order);
 
+  // Tracks pixels that serve as backing beneath upper layer apertures,
+  // preventing any lower layer from perforating those pixels.
+  const backingReservedMask = new Uint8Array(totalPixels);
+
+  const maxNeighborDistPx = Math.max(blendReachPx * 4, 50 * pxPerMm);
+
   // Process upper cut layers from top (z = N-1) down to layer 1 (Layer 0 solid base is never perforated)
   for (let z = zOrder.length - 1; z >= 1; z--) {
     const origIdx = zOrder[z].index;
-    const lowerOrigIdx = zOrder[z - 1].index;
     const currentMask = texturedMasks[origIdx].data;
-    const lowerMask = texturedMasks[lowerOrigIdx].data;
 
     // Compute union of layers above z so this layer knows where it is an underlap backing
     const upperMask = new Uint8Array(totalPixels);
@@ -73,6 +77,18 @@ export function applySurfaceTexturing(
       }
     }
 
+    // Spatial nearest-lower-layer map: determines which physical sheet beneath z is locally adjacent
+    // in 2D space, preventing globally interleaved accents (e.g. blue bars) from being used in warm gradients
+    const nearestLowerZ = computeNearestLowerLayerMap(
+      layerMasks,
+      zOrder,
+      z,
+      width,
+      height,
+      maxNeighborDistPx,
+      alpha
+    );
+
     // Boundary mode distance transform (inward from outer edge of current layer)
     let distMap: Float32Array | null = null;
     if (safeConfig.textureMode === 'boundary') {
@@ -80,8 +96,6 @@ export function applySurfaceTexturing(
     }
 
     const currLightness = zOrder[z].swatch?.oklab?.[0] ?? 0.7;
-    const lowerLightness = zOrder[z - 1].swatch?.oklab?.[0] ?? 0.3;
-    const isLightOnDark = currLightness >= lowerLightness;
 
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
@@ -91,9 +105,15 @@ export function applySurfaceTexturing(
         if (alpha && alpha[idx] < 128) continue;
         if (currentMask[idx] === 0) continue;
 
-        // If this pixel is underlapping an upper layer, it MUST remain 100% solid paper
-        // so that it acts as the solid background showing through the upper layer's apertures!
-        if (upperMask[idx] === 1) continue;
+        // If this pixel is underlapping an upper layer, or acts as a backing beneath an upper aperture,
+        // it MUST remain 100% solid paper so that it cleanly shows through!
+        if (upperMask[idx] === 1 || backingReservedMask[idx] === 1) continue;
+
+        const targetLowerZ = nearestLowerZ[idx];
+        const lowerOrigIdx = zOrder[targetLowerZ].index;
+        const lowerMask = texturedMasks[lowerOrigIdx].data;
+        const lowerLightness = zOrder[targetLowerZ].swatch?.oklab?.[0] ?? 0.3;
+        const isLightOnDark = currLightness >= lowerLightness;
 
         let tone = 0.5; // Aperture opening factor (0.0 = solid paper, 1.0 = maximum cutout)
 
@@ -124,10 +144,11 @@ export function applySurfaceTexturing(
         if (tone <= 0.05) continue; // Closed aperture
 
         // Crucial Physical Craft Rule:
-        // Ensure the layer immediately below (lowerMask) has solid paper backing beneath
-        // this texturing zone so that when currentMask is cut away, the immediately below
-        // layer shows through instead of falling through to the base!
+        // Ensure the locally adjacent lower sheet (lowerMask) has solid paper backing beneath
+        // this texturing zone so that when currentMask is cut away, the true underlying sheet
+        // shows through without punching through to the base or revealing alien accent colors!
         lowerMask[idx] = 1;
+        backingReservedMask[idx] = 1;
 
         // Rotated coordinates for directional pattern orientation
         const u = x * cosA + y * sinA;
@@ -334,3 +355,152 @@ function computeInwardBoundaryDistance(
 
   return dist;
 }
+
+/**
+ * Computes a spatial map assigning each pixel to the nearest lower layer (lz < z) in 2D space.
+ * This prevents globally-interleaved accent colors (e.g. blue bars in another zone) from
+ * incorrectly being synthesized as the backing layer in unrelated gradients (e.g. yellow->orange).
+ */
+function computeNearestLowerLayerMap(
+  masks: BinaryMask[],
+  zOrder: Array<{ index: number; order: number; swatch?: ChromaSwatch }>,
+  currentZ: number,
+  width: number,
+  height: number,
+  maxNeighborDistPx: number,
+  alpha?: Uint8Array | null
+): Uint8Array {
+  const total = width * height;
+  const owner = new Uint8Array(total); // Defaults to 0 (Layer 0 Base)
+  const dist = new Float32Array(total).fill(Infinity);
+
+  // 1. Seed all intermediate lower color layers (lz from 1 to currentZ - 1)
+  // Seed in ascending order so higher sheets win at overlapping underlap pixels
+  let hasIntermediateLowerLayers = false;
+  for (let lz = 1; lz < currentZ; lz++) {
+    const lMask = masks[zOrder[lz].index]?.data;
+    if (!lMask) continue;
+    for (let i = 0; i < total; i++) {
+      if (alpha && alpha[i] < 128) continue;
+      if (lMask[i] === 1) {
+        dist[i] = 0;
+        owner[i] = lz;
+        hasIntermediateLowerLayers = true;
+      }
+    }
+  }
+
+  // If there are no intermediate lower layers (e.g. currentZ === 1), everything falls back to Layer 0
+  if (!hasIntermediateLowerLayers) {
+    return owner; // all 0
+  }
+
+  // 2. Forward pass (Chamfer distance)
+  const d1 = 1.0;
+  const d2 = 1.414;
+
+  for (let y = 0; y < height; y++) {
+    const rowOffset = y * width;
+    for (let x = 0; x < width; x++) {
+      const idx = rowOffset + x;
+      if (alpha && alpha[idx] < 128) continue;
+
+      let curD = dist[idx];
+      let curOwner = owner[idx];
+
+      // Left neighbor
+      if (x > 0) {
+        const nD = dist[idx - 1] + d1;
+        if (nD < curD || (nD === curD && owner[idx - 1] > curOwner)) {
+          curD = nD;
+          curOwner = owner[idx - 1];
+        }
+      }
+      // Top neighbor
+      if (y > 0) {
+        const nD = dist[idx - width] + d1;
+        if (nD < curD || (nD === curD && owner[idx - width] > curOwner)) {
+          curD = nD;
+          curOwner = owner[idx - width];
+        }
+      }
+      // Top-left neighbor
+      if (x > 0 && y > 0) {
+        const nD = dist[idx - width - 1] + d2;
+        if (nD < curD || (nD === curD && owner[idx - width - 1] > curOwner)) {
+          curD = nD;
+          curOwner = owner[idx - width - 1];
+        }
+      }
+      // Top-right neighbor
+      if (x < width - 1 && y > 0) {
+        const nD = dist[idx - width + 1] + d2;
+        if (nD < curD || (nD === curD && owner[idx - width + 1] > curOwner)) {
+          curD = nD;
+          curOwner = owner[idx - width + 1];
+        }
+      }
+
+      dist[idx] = curD;
+      owner[idx] = curOwner;
+    }
+  }
+
+  // 3. Backward pass (Chamfer distance)
+  for (let y = height - 1; y >= 0; y--) {
+    const rowOffset = y * width;
+    for (let x = width - 1; x >= 0; x--) {
+      const idx = rowOffset + x;
+      if (alpha && alpha[idx] < 128) continue;
+
+      let curD = dist[idx];
+      let curOwner = owner[idx];
+
+      // Right neighbor
+      if (x < width - 1) {
+        const nD = dist[idx + 1] + d1;
+        if (nD < curD || (nD === curD && owner[idx + 1] > curOwner)) {
+          curD = nD;
+          curOwner = owner[idx + 1];
+        }
+      }
+      // Bottom neighbor
+      if (y < height - 1) {
+        const nD = dist[idx + width] + d1;
+        if (nD < curD || (nD === curD && owner[idx + width] > curOwner)) {
+          curD = nD;
+          curOwner = owner[idx + width];
+        }
+      }
+      // Bottom-right neighbor
+      if (x < width - 1 && y < height - 1) {
+        const nD = dist[idx + width + 1] + d2;
+        if (nD < curD || (nD === curD && owner[idx + width + 1] > curOwner)) {
+          curD = nD;
+          curOwner = owner[idx + width + 1];
+        }
+      }
+      // Bottom-left neighbor
+      if (x > 0 && y < height - 1) {
+        const nD = dist[idx + width - 1] + d2;
+        if (nD < curD || (nD === curD && owner[idx + width - 1] > curOwner)) {
+          curD = nD;
+          curOwner = owner[idx + width - 1];
+        }
+      }
+
+      dist[idx] = curD;
+      owner[idx] = curOwner;
+    }
+  }
+
+  // 4. Threshold pass: if nearest lower layer is too far away, fall back to Layer 0 Base
+  for (let i = 0; i < total; i++) {
+    if (dist[i] > maxNeighborDistPx) {
+      owner[i] = 0;
+    }
+  }
+
+  return owner;
+}
+

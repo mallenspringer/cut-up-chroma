@@ -232,4 +232,94 @@ describe('Surface Texturing & Negative-Space Pattern Engine', () => {
     // Warning check should flag it
     expect(isBelowSafeThreshold(custom)).toBe(true);
   });
+
+  it('should resolve local 2D spatial underlap neighbor when an interleaved accent layer is geographically isolated', () => {
+    const width = 50;
+    const height = 50;
+    const total = width * height;
+
+    // Layer 0: Solid base
+    const mask0 = new Uint8Array(total).fill(1);
+    // Layer 1: Orange (left half: x < 25)
+    const mask1 = new Uint8Array(total);
+    // Layer 2: Blue (isolated accent patch in bottom right: x >= 40 && y >= 40)
+    const mask2 = new Uint8Array(total);
+    // Layer 3: Yellow (upper sheet on right side: x >= 25 && y < 40)
+    const mask3 = new Uint8Array(total);
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = y * width + x;
+        if (x < 25) {
+          mask1[idx] = 1;
+        } else if (x >= 40 && y >= 40) {
+          mask2[idx] = 1;
+        } else if (x >= 25 && y < 40) {
+          mask3[idx] = 1;
+        }
+      }
+    }
+
+    const masks: BinaryMask[] = [
+      { width, height, data: mask0 },
+      { width, height, data: mask1 },
+      { width, height, data: mask2 },
+      { width, height, data: mask3 },
+    ];
+
+    const layers: ChromaLayerState[] = [
+      { id: 'layer-0', order: 0, swatch: { id: 's0', name: 'Base', hex: '#111814', oklab: [0.15, 0, 0], oklch: [0.15, 0, 0] }, underlapBleedMm: 0 },
+      { id: 'layer-1', order: 1, swatch: { id: 's1', name: 'Orange', hex: '#f1771c', oklab: [0.65, 0.15, 60], oklch: [0.65, 0.15, 60] }, underlapBleedMm: 0 },
+      { id: 'layer-2', order: 2, swatch: { id: 's2', name: 'Blue Accent', hex: '#34aee3', oklab: [0.70, -0.05, 230], oklch: [0.70, 0.05, 230] }, underlapBleedMm: 0 },
+      { id: 'layer-3', order: 3, swatch: { id: 's3', name: 'Yellow', hex: '#f8bb40', oklab: [0.81, 0.08, 85], oklch: [0.81, 0.08, 85] }, underlapBleedMm: 0 },
+    ];
+
+    const config: SurfaceTextureConfig = {
+      enabled: true,
+      textureMode: 'full_field',
+      patternStyle: 'ribbons',
+      cutterPreset: 'drag_knife',
+      frequencyMm: 4.0,
+      bridgeWidthMm: 1.5,
+      slotWidthMm: 0.8,
+      blendReachMm: 6.0,
+      angleDeg: 0,
+      bridgingTabsEnabled: true,
+    };
+
+    const result = applySurfaceTexturing(masks, layers, config, 1.0);
+
+    // Verify Layer 3 (Yellow) cut apertures near its border with Orange
+    let yellowZerosNearBorder = 0;
+    for (let y = 10; y < 30; y++) {
+      for (let x = 25; x < 35; x++) {
+        const idx = y * width + x;
+        if (result[3].data[idx] === 0) yellowZerosNearBorder++;
+      }
+    }
+    expect(yellowZerosNearBorder).toBeGreaterThan(0);
+
+    // Verify that Layer 2 (Blue Accent) was NOT synthesized near x in [25..35]
+    let bluePixelsNearYellow = 0;
+    for (let y = 10; y < 30; y++) {
+      for (let x = 25; x < 35; x++) {
+        const idx = y * width + x;
+        if (result[2].data[idx] === 1) bluePixelsNearYellow++;
+      }
+    }
+    // Blue should remain ZERO in this region!
+    expect(bluePixelsNearYellow).toBe(0);
+
+    // Verify that Layer 1 (Orange) was given the underlap backing beneath Yellow's apertures!
+    let orangeBackingCount = 0;
+    for (let y = 10; y < 30; y++) {
+      for (let x = 25; x < 35; x++) {
+        const idx = y * width + x;
+        if (result[3].data[idx] === 0 && result[1].data[idx] === 1) {
+          orangeBackingCount++;
+        }
+      }
+    }
+    expect(orangeBackingCount).toBe(yellowZerosNearBorder);
+  });
 });
