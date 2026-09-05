@@ -536,6 +536,7 @@ export const App: React.FC = () => {
           throttledLayers,
           throttledSurfaceTexture,
           printable.pxPerMm,
+          precomputedOklch?.L,
           precomputedOklch?.alpha
         )
       : clearedMasks;
@@ -595,6 +596,7 @@ export const App: React.FC = () => {
     throttledSurfaceTexture,
     state.aestheticFilter,
     state.canvas,
+    precomputedOklch?.L,
     precomputedOklch?.alpha,
   ]);
 

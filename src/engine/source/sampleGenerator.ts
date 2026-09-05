@@ -1,15 +1,21 @@
 import { SourceImage } from '../types';
 
 /**
- * Generates an 8x6 (48-patch) Perceptual Color Calibration Test Pattern
- * with rich hue distributions, neutral lightness ramps, earth tones, and saturated jewel tones.
- * All color patches are guaranteed to be exact squares.
+ * Generates a Multi-Zone Calibration Gradient & Step-Wedge Target.
+ * Specifically engineered for validating layered cuts, negative-space pattern engines,
+ * full-field tone modulation, boundary feathering, and kerf/bridge clearances.
+ * 
+ * Zones:
+ * 1. Top: Continuous Horizontal Linear Gradient Ramp (Full-field tone modulation test)
+ * 2. Middle Left: 5-Tier Stepped Value Blocks (Boundary gradient feathering test)
+ * 3. Middle Right: Radial Gradient Disc (Angle orientation & isotropic aperture test)
+ * 4. Bottom: Graduated Kerf & Bridge Line Gauge (Physical clearance & bridge test)
  */
 export function generateCalibrationPattern(width: number = 800, height: number = 600): SourceImage {
   if (typeof document === 'undefined') {
     return {
       id: 'sample-calibration-card',
-      name: '48-Patch Chroma Calibration Card',
+      name: 'Chroma Calibration Target & Gradient Suite',
       width,
       height,
       aspectRatio: width / height,
@@ -25,80 +31,134 @@ export function generateCalibrationPattern(width: number = 800, height: number =
     throw new Error('Could not create canvas context');
   }
 
-  // Dark slate background
-  ctx.fillStyle = '#1b281f';
+  // Deep neutral drafting background
+  ctx.fillStyle = '#141c16';
   ctx.fillRect(0, 0, width, height);
 
-  // Calibration Matrix: 8 columns x 6 rows = 48 distinct perceptual color patches
-  const cols = 8;
-  const rows = 6;
-  const marginX = 16;
-  const marginY = 16;
-  const gap = 8;
+  const padX = 24;
+  const padY = 24;
+  const contentW = width - padX * 2;
+  const contentH = height - padY * 2;
 
-  const availW = width - marginX * 2;
-  const availH = height - marginY * 2;
+  // Title / Target Header (Small, clean technical typography)
+  ctx.font = '10px monospace';
+  ctx.fillStyle = '#6b8273';
+  ctx.fillText('CUTUP CHROMA // NEGATIVE-SPACE CALIBRATION TARGET & GRADIENT SUITE', padX, padY - 8);
 
-  const rawCellW = (availW - (cols - 1) * gap) / cols;
-  const rawCellH = (availH - (rows - 1) * gap) / rows;
+  // --------------------------------------------------------------------------
+  // ZONE 1: Continuous Horizontal Gradient Ramp (Top 28% of height)
+  // --------------------------------------------------------------------------
+  const z1Y = padY;
+  const z1H = Math.round(contentH * 0.28);
 
-  // Enforce perfectly square swatches
-  const patchSize = Math.floor(Math.min(rawCellW, rawCellH));
+  const linearGrad = ctx.createLinearGradient(padX, z1Y, padX + contentW, z1Y);
+  linearGrad.addColorStop(0.0, '#fffbf5'); // Highlight Light Sand
+  linearGrad.addColorStop(0.28, '#fcd34d'); // Warm Yellow
+  linearGrad.addColorStop(0.55, '#ea580c'); // Mid Orange / Terracotta
+  linearGrad.addColorStop(0.80, '#991b1b'); // Crimson
+  linearGrad.addColorStop(1.0, '#0f172a'); // Deep Shadow Navy
 
-  const totalGridW = cols * patchSize + (cols - 1) * gap;
-  const totalGridH = rows * patchSize + (rows - 1) * gap;
+  ctx.fillStyle = linearGrad;
+  ctx.fillRect(padX, z1Y, contentW, z1H);
 
-  // Center the grid of square patches inside the image
-  const startX = Math.round((width - totalGridW) / 2);
-  const startY = Math.round((height - totalGridH) / 2);
+  // Outline
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(padX + 0.5, z1Y + 0.5, contentW - 1, z1H - 1);
 
-  const PALETTE_GRID: string[][] = [
-    // Row 1: 8-Step Neutral Grayscale Ramp
-    ['#111111', '#333333', '#555555', '#777777', '#999999', '#bbbbbb', '#dddddd', '#f8fafc'],
+  // --------------------------------------------------------------------------
+  // ZONE 2 & 3: Middle Band (Height ~42% of contentH)
+  // Left: 5 Stepped Value Blocks | Right: Radial Gradient Target
+  // --------------------------------------------------------------------------
+  const z2Y = z1Y + z1H + 16;
+  const z2H = Math.round(contentH * 0.42);
+  const gapMid = 16;
+  const z2LeftW = Math.round((contentW - gapMid) * 0.58);
+  const z2RightW = contentW - gapMid - z2LeftW;
+  const z2RightX = padX + z2LeftW + gapMid;
 
-    // Row 2: Vivid Spectral Primaries & Secondaries
-    ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'],
-
-    // Row 3: Earth, Botanical & Mineral Cardstocks
-    ['#78350f', '#92400e', '#b45309', '#4d7c0f', '#15803d', '#0f766e', '#1e3a8a', '#581c87'],
-
-    // Row 4: Warm Terracottas, Ochres, Sands & Woodgrains
-    ['#451a03', '#7c2d12', '#9a3412', '#c2410c', '#d97706', '#ca8a04', '#a16207', '#713f12'],
-
-    // Row 5: Soft Pastels & Tint Tones
-    ['#fecaca', '#fed7aa', '#fef08a', '#bbf7d0', '#a5f3fc', '#bfdbfe', '#ddd6fe', '#fbcfe8'],
-
-    // Row 6: Deep Jewel Tones & Shadow Chrome
-    ['#881337', '#701a75', '#4c1d95', '#1e1b4b', '#064e3b', '#14532d', '#365314', '#3b2010'],
+  // ZONE 2: 5 Stepped Value Blocks
+  const stepColors = [
+    '#fffdfa', // Tier 1 (Lightest)
+    '#fed7aa', // Tier 2
+    '#f97316', // Tier 3
+    '#9a3412', // Tier 4
+    '#1e1b4b', // Tier 5 (Darkest)
   ];
+  const stepW = z2LeftW / stepColors.length;
 
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const color = PALETTE_GRID[r][c];
-      const px = startX + c * (patchSize + gap);
-      const py = startY + r * (patchSize + gap);
+  for (let s = 0; s < stepColors.length; s++) {
+    const sx = Math.round(padX + s * stepW);
+    const sw = Math.round(padX + (s + 1) * stepW) - sx;
+    ctx.fillStyle = stepColors[s];
+    ctx.fillRect(sx, z2Y, sw, z2H);
 
-      // Subtle drop shadow / bevel
-      ctx.fillStyle = '#0f1712';
-      ctx.fillRect(px - 1, py - 1, patchSize + 2, patchSize + 2);
-
-      // Patch Fill
-      ctx.fillStyle = color;
-      ctx.fillRect(px, py, patchSize, patchSize);
-
-      // Subtle border
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(px + 0.5, py + 0.5, patchSize - 1, patchSize - 1);
+    // Subtle divider
+    if (s > 0) {
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.beginPath();
+      ctx.moveTo(sx, z2Y);
+      ctx.lineTo(sx, z2Y + z2H);
+      ctx.stroke();
     }
   }
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+  ctx.strokeRect(padX + 0.5, z2Y + 0.5, z2LeftW - 1, z2H - 1);
+
+  // ZONE 3: Concentric / Radial Gradient Target
+  const radCenterX = z2RightX + z2RightW * 0.5;
+  const radCenterY = z2Y + z2H * 0.5;
+  const radRadius = Math.min(z2RightW, z2H) * 0.48;
+
+  // Backdrop for radial target
+  ctx.fillStyle = '#0b110e';
+  ctx.fillRect(z2RightX, z2Y, z2RightW, z2H);
+
+  const radialGrad = ctx.createRadialGradient(radCenterX, radCenterY, 0, radCenterX, radCenterY, radRadius);
+  radialGrad.addColorStop(0.0, '#fffbf5');
+  radialGrad.addColorStop(0.4, '#fbbf24');
+  radialGrad.addColorStop(0.75, '#b91c1c');
+  radialGrad.addColorStop(1.0, '#0f172a');
+
+  ctx.beginPath();
+  ctx.arc(radCenterX, radCenterY, radRadius, 0, Math.PI * 2);
+  ctx.fillStyle = radialGrad;
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+  ctx.strokeRect(z2RightX + 0.5, z2Y + 0.5, z2RightW - 1, z2H - 1);
+
+  // --------------------------------------------------------------------------
+  // ZONE 4: Bottom Gauge (Height ~18% of contentH)
+  // Graduated Kerf / Bridge Gauge Bars (0.5mm to 3.0mm equivalent lines)
+  // --------------------------------------------------------------------------
+  const z4Y = z2Y + z2H + 16;
+  const z4H = (padY + contentH) - z4Y;
+
+  ctx.fillStyle = '#0f1712';
+  ctx.fillRect(padX, z4Y, contentW, z4H);
+
+  const barCounts = 14;
+  const gaugeLeft = padX + 16;
+  const gaugeW = contentW - 32;
+  const barSpacing = gaugeW / barCounts;
+
+  for (let b = 0; b < barCounts; b++) {
+    const bx = gaugeLeft + b * barSpacing;
+    const barWidth = 1 + Math.round((b / barCounts) * 12);
+    ctx.fillStyle = b % 2 === 0 ? '#f8fafc' : '#38bdf8';
+    ctx.fillRect(bx, z4Y + 8, barWidth, z4H - 16);
+  }
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+  ctx.strokeRect(padX + 0.5, z4Y + 0.5, contentW - 1, z4H - 1);
 
   const dataUrl = canvas.toDataURL('image/png');
   const imageData = ctx.getImageData(0, 0, width, height);
 
   return {
-    id: 'chroma-calibration-pattern',
-    name: '48-Patch Chroma Calibration Card',
+    id: 'chroma-calibration-target-suite',
+    name: 'Calibration Target & Gradient Suite',
     width,
     height,
     aspectRatio: width / height,

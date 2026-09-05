@@ -10,8 +10,10 @@ Toolbar Styling & UX(slider functionality tweaks in separate section)
 - surface textures & gradiants
     - restyle copy and checkbox for enable (maybe a button instead)
     - ~~Let's use Blade/Cut(I'll figure out best langauge) instead of brandname Cricut and adjust description copy~~
-    - perhaps default bridge/spacing/etc to fit to match clearance setting, but then allow manual override
+    - ~~perhaps default bridge/spacing/etc to fit to match clearance setting, but then allow manual override~~ (implemented with advisory indicator instead of hard clamp)
     - ~~keep discrete steps on slider for pattern angle, but allow manual entry of any value intot he degree label box~~
+    - ~~two modes: Full-field tone texture vs Interlayer Boundary gradient~~
+    - ~~structural paper bridging tabs togglable for blades vs transparencies~~
     - after other refinements, see if it's still too busy, if so consider a modal or (hopefully not) a second toolbar
 - Canvas and Material Sizing
     - ~~get one source of truth for unit--should it be here or in settings or in settings but with a quick link button here? select 8.5 x 11 paper but use mm for actual drafting, etc.~~
@@ -45,13 +47,12 @@ Engine parameter controls
 
 - quantized preview not showing manually changed color pallette as expected--maybe I'm misremembering our final design decisionon that feature
 
-- heavy refinement of interlayer gradiants--also check feasibility of two modes-
+- ~~heavy refinement of interlayer gradiants--also check feasibility of two modes-~~ (implemented: Full-field tone texture vs Boundary gradient)
     - check feasibility of using gradiant with preset pallets like cmyk for another effect
 
 Manual testing
 - come up with manual test cases for underlap Seam Bleed
-- Testing for chroma floor algo and potential tweaking
-- Manual testing for texture/gradiant layers first to make sure engine is working properly before fine tuning the algos and effect
+- ~~Manual testing for texture/gradiant layers first to make sure engine is working properly before fine tuning the algos and effect~~ (see [manual_texture_testing_guide.md](manual_texture_testing_guide.md))
 
 
 - Filters are affecting quantized preview
