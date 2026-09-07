@@ -37,7 +37,7 @@ jobs:
         run: |
           echo "$SSH_PRIVATE_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
-          rsync -avz -e "ssh -p $DEPLOY_PORT -i /tmp/deploy_key -o StrictHostKeyChecking=no" ./dist/ $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH
+          rsync -avz --chmod=D755,F644 -e "ssh -p $DEPLOY_PORT -i /tmp/deploy_key -o StrictHostKeyChecking=no" ./dist/ $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH
 
       # Optional: Deploy via FTP
       - name: Deploy via FTP
