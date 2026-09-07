@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChromaLayerState, CanvasSettings, VectorLayerResult, SourceImage } from '../../engine/types';
 import { generateMasterCombinedSVG } from '../../export/svgGenerator';
 import { createZipPackage, downloadBlob } from '../../export/zipPackage';
@@ -69,6 +69,17 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const [digitalFormat, setDigitalFormat] = useState<'png' | 'jpeg'>('png');
   const [dpiMultiplier, setDpiMultiplier] = useState<number>(3); // 3x = ~300 DPI
   const [isExportingMockup, setIsExportingMockup] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 

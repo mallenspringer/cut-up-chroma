@@ -74,11 +74,17 @@ export const LayerManagerPanel: React.FC<LayerManagerPanelProps> = ({
     const [moved] = reorderedVisual.splice(fromIdx, 1);
     reorderedVisual.splice(toIdx, 0, moved);
 
-    // Reassign orders: bottom item has order 0 (Base), top has order N-1
+    // Reassign Z-index orders: bottom item has order 0 (Base), top has order N-1
     const total = reorderedVisual.length;
-    const newLayers = reorderedVisual.map((layer, vIdx) => ({
+    const orderMap = new Map<string, number>();
+    reorderedVisual.forEach((layer, vIdx) => {
+      orderMap.set(layer.id, total - 1 - vIdx);
+    });
+
+    // Preserve stable identity array order so mask-to-layer correspondence remains intact
+    const newLayers = layers.map(layer => ({
       ...layer,
-      order: total - 1 - vIdx,
+      order: orderMap.get(layer.id) ?? layer.order,
     }));
 
     onReorderLayers(newLayers);

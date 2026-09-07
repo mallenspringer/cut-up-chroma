@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { ChromaProcessingSettings, ClusteringAlgorithm } from '../../engine/types';
 
 interface ChromaControlsPanelProps {
@@ -139,6 +140,17 @@ export const ChromaControlsPanel: React.FC<ChromaControlsPanelProps> = ({
       <div className="space-y-1.5 pt-2 border-t border-sand-400/10">
         <div className="flex justify-between items-center text-[11px]">
           <span className="text-sand-300 font-semibold uppercase font-gorton">Clustering Engine</span>
+          {onReExtractPalette && (
+            <button
+              type="button"
+              onClick={onReExtractPalette}
+              title="Re-run clustering and re-extract palette"
+              className="flex items-center gap-1 text-[10px] text-sand-300 hover:text-emerald-400 px-1.5 py-0.5 rounded bg-moss-900/60 hover:bg-moss-800 border border-sand-400/20 transition-colors"
+            >
+              <RefreshCw className="w-2.5 h-2.5" />
+              <span>Re-run</span>
+            </button>
+          )}
         </div>
         <select
           value={currentAlgo}

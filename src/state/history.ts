@@ -24,8 +24,7 @@ export function createInitialHistory(initialState: AppState): HistoryState {
  */
 export function pushHistorySnapshot(
   history: HistoryState,
-  newPresent: AppState,
-  debounceKey?: string
+  newPresent: AppState
 ): HistoryState {
   if (history.present === newPresent) {
     return history;

@@ -108,7 +108,7 @@ export function downloadBlob(blob: Blob, filename: string): void {
   document.body.appendChild(a);
   a.click();
 
-  // Defer cleanup by 45 seconds so Chrome background download manager stream doesn't get aborted
+  // Defer cleanup by 15 seconds so browser download stream completes safely before revoking memory
   setTimeout(() => {
     try {
       if (document.body.contains(a)) {
@@ -118,5 +118,5 @@ export function downloadBlob(blob: Blob, filename: string): void {
     } catch {
       // Ignore if already revoked
     }
-  }, 45000);
+  }, 15000);
 }

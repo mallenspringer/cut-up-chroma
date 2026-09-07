@@ -29,3 +29,29 @@ lerna-debug.log*
 # Reference & internal handoff scratch copies
 dev_docs/luma_reference_copy/
 dev_docs/luma_reference_copy
+*luma_reference*
+
+# Environment & Local overrides
+.env
+.env.local
+.env.*.local
+*.env
+ssh_keys/
+*.key
+*.pub
+
+# Testing & Coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# Cache & Temporary Files
+.vite/
+*.tsbuildinfo
+*.tmp
+*.bak
+
+# Windows & macOS OS files
+Thumbs.db
+ehthumbs.db
+desktop.ini

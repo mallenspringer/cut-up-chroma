@@ -1,9 +1,11 @@
 import { ChromaSwatch, BinaryMask, ChromaProcessingSettings } from '../types';
-import { rgbToOklab, oklabToOklch, calculateWeightedDeltaE, oklabToRgb } from './oklab';
+import { rgbToOklab, oklabToOklch, calculateWeightedDeltaE, oklabToRgb, hexToRgb } from './oklab';
 
 export interface ClassificationResult {
   layerMasks: BinaryMask[];
   quantizedImageData: ImageData;
+  rawQuantizedImageData?: ImageData;
+  layerIndices?: Uint8Array;
   pixelCounts: number[];
   totalPixels: number;
 }
@@ -100,7 +102,15 @@ export function classifyImagePixels(
     h: p.oklch[2],
   }));
 
-  const paletteRgb = palette.map(p => oklabToRgb(p.oklab[0], p.oklab[1], p.oklab[2]));
+  const paletteRgb = palette.map(p => {
+    if (p.hex) return hexToRgb(p.hex);
+    return oklabToRgb(p.oklab[0], p.oklab[1], p.oklab[2]);
+  });
+
+  const rawCentroidsRgb = palette.map(p => {
+    if (p.computedHex) return hexToRgb(p.computedHex);
+    return oklabToRgb(p.oklab[0], p.oklab[1], p.oklab[2]);
+  });
 
   // Allocate binary masks for each layer
   const masksData: Uint8Array[] = [];
@@ -108,8 +118,10 @@ export function classifyImagePixels(
     masksData.push(new Uint8Array(totalPixels));
   }
 
+  const layerIndices = new Uint8Array(totalPixels);
   const pixelCounts = new Array(numLayers).fill(0);
   const quantizedData = new Uint8ClampedArray(totalPixels * 4);
+  const rawQuantizedData = new Uint8ClampedArray(totalPixels * 4);
 
   if (isPrecomputed) {
     const { L, C, h, alpha } = source as PrecomputedOklchBuffer;
@@ -123,6 +135,10 @@ export function classifyImagePixels(
         quantizedData[idx + 1] = 0;
         quantizedData[idx + 2] = 0;
         quantizedData[idx + 3] = 0;
+        rawQuantizedData[idx] = 0;
+        rawQuantizedData[idx + 1] = 0;
+        rawQuantizedData[idx + 2] = 0;
+        rawQuantizedData[idx + 3] = 0;
         continue;
       }
 
@@ -161,14 +177,21 @@ export function classifyImagePixels(
         }
       }
 
+      layerIndices[i] = bestLayer;
       masksData[bestLayer][i] = 1;
       pixelCounts[bestLayer]++;
 
-      const chosenRgb = paletteRgb[bestLayer];
-      quantizedData[idx] = chosenRgb.r;
-      quantizedData[idx + 1] = chosenRgb.g;
-      quantizedData[idx + 2] = chosenRgb.b;
+      const chosenPhysical = paletteRgb[bestLayer];
+      quantizedData[idx] = chosenPhysical.r;
+      quantizedData[idx + 1] = chosenPhysical.g;
+      quantizedData[idx + 2] = chosenPhysical.b;
       quantizedData[idx + 3] = 255;
+
+      const chosenRaw = rawCentroidsRgb[bestLayer];
+      rawQuantizedData[idx] = chosenRaw.r;
+      rawQuantizedData[idx + 1] = chosenRaw.g;
+      rawQuantizedData[idx + 2] = chosenRaw.b;
+      rawQuantizedData[idx + 3] = 255;
     }
   } else {
     const rawData = (source as ImageData).data;
@@ -182,6 +205,10 @@ export function classifyImagePixels(
         quantizedData[idx + 1] = 0;
         quantizedData[idx + 2] = 0;
         quantizedData[idx + 3] = 0;
+        rawQuantizedData[idx] = 0;
+        rawQuantizedData[idx + 1] = 0;
+        rawQuantizedData[idx + 2] = 0;
+        rawQuantizedData[idx + 3] = 0;
         continue;
       }
 
@@ -220,14 +247,21 @@ export function classifyImagePixels(
         }
       }
 
+      layerIndices[i] = bestLayer;
       masksData[bestLayer][i] = 1;
       pixelCounts[bestLayer]++;
 
-      const chosenRgb = paletteRgb[bestLayer];
-      quantizedData[idx] = chosenRgb.r;
-      quantizedData[idx + 1] = chosenRgb.g;
-      quantizedData[idx + 2] = chosenRgb.b;
+      const chosenPhysical = paletteRgb[bestLayer];
+      quantizedData[idx] = chosenPhysical.r;
+      quantizedData[idx + 1] = chosenPhysical.g;
+      quantizedData[idx + 2] = chosenPhysical.b;
       quantizedData[idx + 3] = 255;
+
+      const chosenRaw = rawCentroidsRgb[bestLayer];
+      rawQuantizedData[idx] = chosenRaw.r;
+      rawQuantizedData[idx + 1] = chosenRaw.g;
+      rawQuantizedData[idx + 2] = chosenRaw.b;
+      rawQuantizedData[idx + 3] = 255;
     }
   }
 
@@ -242,9 +276,16 @@ export function classifyImagePixels(
       ? new ImageData(quantizedData, width, height)
       : ({ data: quantizedData, width, height, colorSpace: 'srgb' } as unknown as ImageData);
 
+  const rawQuantizedImageData =
+    typeof ImageData !== 'undefined'
+      ? new ImageData(rawQuantizedData, width, height)
+      : ({ data: rawQuantizedData, width, height, colorSpace: 'srgb' } as unknown as ImageData);
+
   return {
     layerMasks,
     quantizedImageData,
+    rawQuantizedImageData,
+    layerIndices,
     pixelCounts,
     totalPixels,
   };

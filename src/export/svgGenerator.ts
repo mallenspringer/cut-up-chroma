@@ -1,6 +1,18 @@
 import { ChromaLayerState, CanvasSettings, VectorLayerResult } from '../engine/types';
 import { getPrintableArea, generateRegistrationMarksSVG } from '../engine/layout/canvasLayout';
 
+/**
+ * Escapes special XML characters to prevent markup injection or invalid syntax
+ */
+export function escapeXml(str: string): string {
+  return (str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 export interface SVGExportOptions {
   strokeOnly?: boolean;
   strokeColor?: string;
@@ -43,16 +55,18 @@ export function generateMasterCombinedSVG(
     const pathData = vec?.pathData || (isSolid ? `M 0 0 H ${viewW} V ${viewH} H 0 Z` : '');
     if (!pathData) return '';
 
-    const groupId = `layer_${String(index).padStart(2, '0')}_${index === 0 ? 'Base' : 'Layer'}`;
+    const groupId = escapeXml(`layer_${String(index).padStart(2, '0')}_${index === 0 ? 'Base' : 'Layer'}`);
+    const label = escapeXml(index === 0 ? 'Base Foundation' : `Layer ${index}`);
+    const swatchHex = escapeXml(layer.swatch.hex);
 
-    const fillColor = options.solidBlack ? '#000000' : layer.swatch.hex;
-    const layerStrokeColor = options.strokeColor || (options.solidBlack ? '#000000' : layer.swatch.hex);
+    const fillColor = options.solidBlack ? '#000000' : swatchHex;
+    const layerStrokeColor = options.strokeColor ? escapeXml(options.strokeColor) : (options.solidBlack ? '#000000' : swatchHex);
     const fillAttr = isStrokeOnly ? 'none' : fillColor;
     const strokeAttr = isStrokeOnly ? layerStrokeColor : 'none';
     const strokeWidthAttr = isStrokeOnly ? `stroke-width="${strokeWidth}"` : '';
 
-    return `  <!-- Layer ${index}${index === 0 ? ' (Base Foundation)' : ''}: ${layer.swatch.hex} -->
-  <g id="${groupId}" inkscape:label="${index === 0 ? 'Base Foundation' : `Layer ${index}`}" inkscape:groupmode="layer">
+    return `  <!-- Layer ${index}${index === 0 ? ' (Base Foundation)' : ''}: ${swatchHex} -->
+  <g id="${groupId}" inkscape:label="${label}" inkscape:groupmode="layer">
     <path
       d="${pathData}"
       fill="${fillAttr}"
@@ -109,9 +123,9 @@ export function generateSingleLayerSVG(
   const pathData = vectorResult?.pathData || (isSolid ? `M 0 0 H ${viewW} V ${viewH} H 0 Z` : '');
 
   const isStrokeOnly = options.strokeOnly !== false;
-  const strokeColor = options.strokeColor || '#000000';
+  const strokeColor = options.strokeColor ? escapeXml(options.strokeColor) : '#000000';
   const strokeWidth = options.strokeWidthMm ? `${options.strokeWidthMm * pxPerMm}px` : '0.5px';
-  const fillColor = options.solidBlack ? '#000000' : layer.swatch.hex;
+  const fillColor = options.solidBlack ? '#000000' : escapeXml(layer.swatch.hex);
   const fillAttr = isStrokeOnly ? 'none' : fillColor;
 
   const regMarks = options.includeRegistrationMarks
@@ -121,6 +135,9 @@ export function generateSingleLayerSVG(
   const mirrorWrapStart = options.mirrorHorizontal ? `  <g id="mirrored-content" transform="translate(${viewW}, 0) scale(-1, 1)">\n` : '';
   const mirrorWrapEnd = options.mirrorHorizontal ? `  </g>\n` : '';
 
+  const safeName = escapeXml(layer.swatch.name);
+  const safeHex = escapeXml(layer.swatch.hex);
+
   return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg
   xmlns="http://www.w3.org/2000/svg"
@@ -129,8 +146,8 @@ export function generateSingleLayerSVG(
   viewBox="0 0 ${viewW} ${viewH}"
   version="1.1"
 >
-  <title>Layer: ${layer.swatch.name} (${layer.swatch.hex})</title>
-  <desc>CutUp Chroma Layer ${layer.order + 1} - Color: ${layer.swatch.name}</desc>
+  <title>Layer: ${safeName} (${safeHex})</title>
+  <desc>CutUp Chroma Layer ${layer.order + 1} - Color: ${safeName}</desc>
 ${mirrorWrapStart}  <g id="cut-paths" fill="${fillAttr}" fill-rule="evenodd" stroke="${strokeColor}" stroke-width="${strokeWidth}">
     <path d="${pathData}" />
   </g>

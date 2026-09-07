@@ -1,6 +1,6 @@
 import React from 'react';
 import { UserPreferences, WorkbenchTheme, PaperTextureType, DEFAULT_PREFERENCES } from '../../state/preferences';
-import { X, Sliders, SunMedium, Layers, Sparkles, Cookie, RotateCcw, Check } from 'lucide-react';
+import { X, Sliders, SunMedium, Layers, Sparkles, Cookie, RotateCcw, Check, Scissors } from 'lucide-react';
 
 interface PreferencesModalProps {
   isOpen: boolean;
@@ -16,6 +16,17 @@ export const PreferencesModal: React.FC<PreferencesModalProps> = ({
   onUpdate,
 }) => {
   if (!isOpen) return null;
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   const handleResetDefaults = () => {
     onUpdate(prev => ({
@@ -238,7 +249,38 @@ export const PreferencesModal: React.FC<PreferencesModalProps> = ({
             </div>
           </div>
 
-          {/* SECTION 4: Storage & Session Persistence */}
+          {/* SECTION 4: Physical Cut Layer Inspection */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-sand-300 font-gorton">
+              <span className="flex items-center gap-1.5">
+                <Scissors className="w-3.5 h-3.5 text-sand-400" /> Physical Cut Layer Inspection
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-lg bg-moss-950/60 border border-sand-400/20 space-y-2">
+              <label className="flex items-start gap-2.5 cursor-pointer text-sand-200">
+                <input
+                  type="checkbox"
+                  checked={preferences.showUnderlapDashes !== false}
+                  onChange={e =>
+                    onUpdate(p => ({
+                      ...p,
+                      showUnderlapDashes: e.target.checked,
+                    }))
+                  }
+                  className="w-4 h-4 mt-0.5 rounded accent-emerald-500 bg-moss-900 border-sand-400/30 shrink-0 cursor-pointer"
+                />
+                <div>
+                  <div className="font-medium text-xs text-sand-100">Show Underlap Seam Indicators in Layer View</div>
+                  <div className="text-[10px] text-sand-400/80 leading-relaxed">
+                    Displays dashed boundary outlines in Tab 3 indicating the hidden paper expansion extending underneath upper sheets.
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {/* SECTION 5: Storage & Session Persistence */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-sand-300 font-gorton">
               <span className="flex items-center gap-1.5">

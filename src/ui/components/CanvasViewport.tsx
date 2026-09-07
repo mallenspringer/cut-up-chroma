@@ -39,6 +39,7 @@ interface CanvasViewportProps {
   onUpdateWorkingImage?: (updater: (prev: WorkingImageState) => WorkingImageState) => void;
   onResetWorkingImage?: () => void;
   quantizedImageData: ImageData | null;
+  rawQuantizedImageData?: ImageData | null;
   layers: ChromaLayerState[];
   selectedLayerId: string | null;
   onSelectLayer?: (layerId: string) => void;
@@ -63,10 +64,12 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
   onUpdateWorkingImage,
   onResetWorkingImage,
   quantizedImageData,
+  rawQuantizedImageData,
   layers,
   selectedLayerId,
   onSelectLayer,
   vectorResults,
+  underlapOverlays,
   canvas,
   preferences,
   activeTool,
@@ -122,25 +125,21 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
 
   // Render quantized 2D raster preview on tab change or data update
   useEffect(() => {
-    if (activeTab === 'quantized' && quantizedImageData && quantizedCanvasRef.current) {
+    if (activeTab === 'quantized' && quantizedCanvasRef.current) {
       const cvs = quantizedCanvasRef.current;
-      cvs.width = quantizedImageData.width;
-      cvs.height = quantizedImageData.height;
+      const targetImg = showRawCentroids
+        ? (rawQuantizedImageData || quantizedImageData)
+        : quantizedImageData;
+
+      if (!targetImg) return;
+      cvs.width = targetImg.width;
+      cvs.height = targetImg.height;
       const ctx = cvs.getContext('2d');
       if (ctx) {
-        if (!showRawCentroids) {
-          ctx.putImageData(quantizedImageData, 0, 0);
-        } else {
-          const rawClone = new ImageData(
-            new Uint8ClampedArray(quantizedImageData.data),
-            quantizedImageData.width,
-            quantizedImageData.height
-          );
-          ctx.putImageData(rawClone, 0, 0);
-        }
+        ctx.putImageData(targetImg, 0, 0);
       }
     }
-  }, [activeTab, quantizedImageData, showRawCentroids, layers]);
+  }, [activeTab, quantizedImageData, rawQuantizedImageData, showRawCentroids, layers]);
 
   // Calculate fit zoom to display canvas cleanly inside viewport with padding
   const calculateFitZoom = useCallback(() => {
@@ -946,15 +945,34 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
                   viewBox={`0 0 ${viewW} ${viewH}`}
                   className="w-full h-full"
                 >
-                  {vectorResults.get(selectedLayer.id)?.pathData && (
-                    <path
-                      d={vectorResults.get(selectedLayer.id)!.pathData}
-                      fill={selectedLayer.swatch.hex}
-                      fillRule="evenodd"
-                      stroke="#1b281f"
-                      strokeWidth="0.8"
-                      className="transition-colors duration-150"
-                    />
+                  {(() => {
+                    const isSolidBase = selectedLayer.order === 0 && selectedLayer.isSolidBacking !== false;
+                    const pathData = vectorResults.get(selectedLayer.id)?.pathData || (isSolidBase ? `M 0 0 H ${viewW} V ${viewH} H 0 Z` : '');
+                    if (!pathData) return null;
+                    return (
+                      <path
+                        d={pathData}
+                        fill={selectedLayer.swatch.hex}
+                        fillRule="evenodd"
+                        stroke="#1b281f"
+                        strokeWidth="0.8"
+                        className="transition-colors duration-150"
+                      />
+                    );
+                  })()}
+
+                  {/* Underlap Bleed Seam Indicators (Dashed Lines showing hidden paper expansion) */}
+                  {preferences.showUnderlapDashes !== false &&
+                    vectorResults.get(selectedLayer.id)?.underlapPathData && (
+                      <path
+                        d={vectorResults.get(selectedLayer.id)!.underlapPathData}
+                        fill="none"
+                        stroke="#38a169"
+                        strokeWidth="1.2"
+                        strokeDasharray="5 3"
+                        opacity={0.85}
+                        className="pointer-events-none"
+                      />
                   )}
                 </svg>
               )}

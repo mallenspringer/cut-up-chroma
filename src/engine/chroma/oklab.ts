@@ -127,6 +127,15 @@ export function oklabToHex(L: number, a: number, b: number): string {
   return `#${toHex(r)}${toHex(g)}${toHex(bVal)}`;
 }
 
+/** Converts Hex string (#RRGGBB) to RGB */
+export function hexToRgb(hex: string): RGB {
+  const clean = hex.replace('#', '');
+  const r = parseInt(clean.substring(0, 2), 16) || 0;
+  const g = parseInt(clean.substring(2, 4), 16) || 0;
+  const b = parseInt(clean.substring(4, 6), 16) || 0;
+  return { r, g, b };
+}
+
 /** Converts RGB to Hex */
 export function rgbToHex(r: number, g: number, b: number): string {
   const toHex = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');

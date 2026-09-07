@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   AppState,
   PreviewTab,
@@ -8,7 +8,6 @@ import {
   ChromaProcessingSettings,
   CanvasSettings,
   VectorLayerResult,
-  BinaryMask,
   SourceImage,
 } from './engine/types';
 import { createInitialHistory, pushHistorySnapshot, undoHistory, redoHistory, HistoryState } from './state/history';
@@ -23,6 +22,7 @@ import { applyAestheticFilterToImage, DEFAULT_AESTHETIC_FILTER_STATE } from './e
 import { generateCalibrationPattern, extractImageDataFromImage } from './engine/source/sampleGenerator';
 import { resampleWorkingImage } from './engine/working/transform';
 
+import { ErrorBoundary } from './ui/components/ErrorBoundary';
 import { CanvasViewport } from './ui/components/CanvasViewport';
 import { CanvasSettingsPanel } from './ui/components/CanvasSettingsPanel';
 import { ChromaControlsPanel } from './ui/components/ChromaControlsPanel';
@@ -44,12 +44,11 @@ import {
   Undo2,
   Redo2,
   Settings,
-  Download,
   Palette,
   Sparkles,
   Sliders,
   Maximize2,
-  RefreshCw,
+  ExternalLink,
 } from 'lucide-react';
 
 const INITIAL_CANVAS: CanvasSettings = {
@@ -473,7 +472,7 @@ export const App: React.FC = () => {
   // -------------------------------------------------------------
   const classification = useMemo(() => {
     if (!precomputedOklch || state.palette.length === 0) {
-      return { layerMasks: [], quantizedImageData: null, pixelCounts: [], totalPixels: 0 };
+      return { layerMasks: [], quantizedImageData: null, rawQuantizedImageData: null, pixelCounts: [], totalPixels: 0 };
     }
 
     return classifyImagePixels(precomputedOklch, state.palette, throttledProcessing);
@@ -584,6 +583,23 @@ export const App: React.FC = () => {
         traceHolesOnly: false,
       });
 
+      // 4b. Trace underlap seam bleed overlay mask for dashed boundary preview in Layer View
+      const activeUnderlapMask = underlapOverlays[idx];
+      if (
+        activeUnderlapMask &&
+        throttledProcessing.assemblyMode === 'stacked_relief' &&
+        throttledProcessing.underlapBleedMm > 0
+      ) {
+        const uVec = traceBinaryMaskToSVG(activeUnderlapMask, `${layer.id}-underlap`, {
+          turdSize: 2,
+          alphaMax,
+          optCurve: true,
+          optTolerance: optTol,
+          traceHolesOnly: false,
+        });
+        vec.underlapPathData = uVec.pathData;
+      }
+
       vectorCacheRef.current.set(cacheKey, vec);
       results.set(layer.id, vec);
     });
@@ -591,6 +607,7 @@ export const App: React.FC = () => {
     return results;
   }, [
     finalMasks,
+    underlapOverlays,
     throttledLayers,
     throttledProcessing,
     throttledSurfaceTexture,
@@ -649,97 +666,97 @@ export const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-moss-950 text-sand-100 overflow-hidden select-none font-sans">
-      {/* Hidden File Input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/webp"
-        className="hidden"
-        onChange={e => {
-          if (e.target.files && e.target.files[0]) {
-            handleImageFile(e.target.files[0]);
-          }
-        }}
-      />
-
       {/* Top Application Header */}
-      <header className="h-12 bg-moss-900 border-b border-sand-400/20 px-4 flex items-center justify-between shrink-0 z-30 print-hide">
+      <header className="h-14 bg-[#ede7db] drafting-paper-grid border-b border-sand-300 px-6 flex items-center justify-between shrink-0 shadow-sm z-30 print-hide">
         {/* Brand & Title */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div
-              className="p-1.5 rounded-lg border transition-colors duration-300"
-              style={{
-                backgroundColor: `${chromaTitleColor}20`,
-                borderColor: `${chromaTitleColor}50`,
-                color: chromaTitleColor,
-              }}
-            >
-              <Scissors className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-sm tracking-wide text-sand-100 font-gorton">
-                  CutUp{' '}
-                  <span
-                    style={{ color: chromaTitleColor }}
-                    className="font-normal transition-colors duration-300"
-                  >
-                    Chroma
-                  </span>
-                </span>
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-moss-800 text-sand-400 border border-sand-400/15">
-                  V1.0
-                </span>
-              </div>
-            </div>
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center shadow-md shadow-stone-900/25 border transition-colors duration-300"
+            style={{
+              backgroundColor: `${chromaTitleColor}25`,
+              borderColor: `${chromaTitleColor}60`,
+              color: chromaTitleColor,
+            }}
+          >
+            <Scissors className="w-5 h-5" />
+          </div>
+          <div className="flex items-baseline gap-2.5">
+            <h1 className="flex items-baseline gap-2 select-none leading-none">
+              <span className="font-bungee text-[32px] tracking-wide uppercase text-[#25282b]">
+                CutUp
+              </span>
+              <span
+                style={{ color: chromaTitleColor }}
+                className="font-gorton text-[26px] font-bold tracking-wide transition-colors duration-300"
+              >
+                Chroma
+              </span>
+            </h1>
+            <span className="text-xs font-sans font-semibold text-black tracking-wide select-none">
+              V 1.0
+            </span>
           </div>
         </div>
 
-        {/* Global Action Controls: Undo/Redo, Settings Cog, Upload Image */}
-        <div className="flex items-center gap-2">
-          {/* Undo / Redo */}
-          <div className="flex items-center bg-moss-800/60 rounded-lg p-0.5 border border-sand-400/15">
+        {/* Action Controls: Undo/Redo, Upload Image, Preferences */}
+        <div className="flex items-center gap-3">
+          {/* External Link to Live Luma Version */}
+          <a
+            href="https://cutup.poemware.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Open live CutUp Luma in a new tab"
+            className="flex items-center gap-1.5 h-9 px-3 rounded-lg border border-[#38a169] bg-moss-900/70 hover:bg-moss-900/90 hover:border-emerald-400 shadow-sm transition-all duration-200 mr-5 select-none"
+          >
+            <span className="font-bungee text-[13px] tracking-wide uppercase text-white leading-none">
+              CUTUP
+            </span>
+            <span className="font-gorton text-[12px] font-bold tracking-wide text-emerald-300 leading-none">
+              Luma
+            </span>
+            <ExternalLink className="w-3 h-3 text-emerald-400/80 ml-0.5" />
+          </a>
+
+          <div className="flex items-center gap-1 bg-[#142017]/90 backdrop-blur-md border border-sand-700/90 p-1 rounded-lg shadow-md text-xs text-white">
             <button
-              type="button"
-              disabled={history.past.length === 0}
               onClick={handleUndo}
-              className="p-1.5 rounded text-sand-300 hover:text-white hover:bg-moss-700 disabled:opacity-30 transition-colors"
-              title="Undo (Ctrl+Z)"
+              disabled={history.past.length === 0}
+              className="p-1.5 hover:bg-[#223627] text-white hover:text-sand-100 rounded disabled:opacity-30 disabled:pointer-events-none transition"
+              title="Undo composition edit (Ctrl+Z)"
             >
-              <Undo2 className="w-3.5 h-3.5" />
+              <Undo2 className="w-4 h-4" />
             </button>
             <button
-              type="button"
-              disabled={history.future.length === 0}
               onClick={handleRedo}
-              className="p-1.5 rounded text-sand-300 hover:text-white hover:bg-moss-700 disabled:opacity-30 transition-colors"
-              title="Redo (Ctrl+Y)"
+              disabled={history.future.length === 0}
+              className="p-1.5 hover:bg-[#223627] text-white hover:text-sand-100 rounded disabled:opacity-30 disabled:pointer-events-none transition"
+              title="Redo composition edit (Ctrl+Shift+Z)"
             >
-              <Redo2 className="w-3.5 h-3.5" />
+              <Redo2 className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="w-px h-5 bg-sand-400/15 mx-0.5" />
+          <label className="btn btn-primary cursor-pointer flex items-center gap-2 shadow-md shadow-stone-900/30 hover:shadow-lg hover:shadow-stone-900/40 transition">
+            <Upload className="w-4 h-4" /> Upload Image
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/*"
+              onChange={e => {
+                if (e.target.files && e.target.files[0]) {
+                  handleImageFile(e.target.files[0]);
+                }
+              }}
+              className="hidden"
+            />
+          </label>
 
-          {/* Preferences Button */}
           <button
-            type="button"
             onClick={() => setIsPreferencesOpen(true)}
-            className="p-2 rounded-lg bg-moss-800/80 hover:bg-moss-700 text-sand-300 hover:text-white border border-sand-400/20 transition-colors"
-            title="Workspace Preferences & Simulation"
+            className="p-2 rounded-lg bg-[#142017]/90 text-sand-200 hover:text-white hover:bg-[#223627] border border-sand-700/90 shadow-md transition"
+            title="Workspace Preferences & Display Settings"
           >
             <Settings className="w-4 h-4" />
-          </button>
-
-          {/* Upload Image Button */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/85 hover:bg-emerald-600 text-white font-medium text-xs border border-emerald-500/30 shadow-sm transition-colors"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Upload Image</span>
           </button>
         </div>
       </header>
@@ -748,48 +765,65 @@ export const App: React.FC = () => {
       <div className="flex-1 flex overflow-hidden">
         {/* Central Viewport with 4 Preview Tabs */}
         <main className="flex-1 flex flex-col min-w-0">
-          <CanvasViewport
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            sourceImage={state.sourceImage}
-            workingImage={state.workingImage}
-            onUpdateWorkingImage={updater => updateState(prev => ({ ...prev, workingImage: updater(prev.workingImage) }))}
-            onResetWorkingImage={() => {
+          <ErrorBoundary
+            fallbackTitle="Canvas Viewport Error"
+            onReset={() => {
               if (!state.sourceImage) return;
               updateState(prev => ({
                 ...prev,
                 workingImage: {
                   ...prev.workingImage,
-                  crop: {
-                    type: 'rectangle',
-                    geometry: {
-                      x: 0,
-                      y: 0,
-                      width: state.sourceImage?.width || 800,
-                      height: state.sourceImage?.height || 600,
-                    },
-                  },
                   position: { x: 0, y: 0 },
                   scaleX: 1.0,
                   scaleY: 1.0,
                 },
               }));
             }}
-            quantizedImageData={classification.quantizedImageData}
-            layers={state.layers}
-            selectedLayerId={state.selectedLayerId}
-            onSelectLayer={id => updateState(prev => ({ ...prev, selectedLayerId: id }))}
-            vectorResults={vectorResults}
-            underlapOverlays={underlapOverlays}
-            canvas={state.canvas}
-            preferences={preferences}
-            activeTool={state.activeTool}
-            onToolChange={tool => updateState(prev => ({ ...prev, activeTool: tool }))}
-            bridgeWidthMm={state.bridgeWidthMm}
-            registrationMarks={state.output.registrationMarks}
-            onApplyWandEdit={handleApplyWandEdit}
-            onApplyBridgeStroke={handleApplyBridgeStroke}
-          />
+          >
+            <CanvasViewport
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              sourceImage={state.sourceImage}
+              workingImage={state.workingImage}
+              onUpdateWorkingImage={updater => updateState(prev => ({ ...prev, workingImage: updater(prev.workingImage) }))}
+              onResetWorkingImage={() => {
+                if (!state.sourceImage) return;
+                updateState(prev => ({
+                  ...prev,
+                  workingImage: {
+                    ...prev.workingImage,
+                    crop: {
+                      type: 'rectangle',
+                      geometry: {
+                        x: 0,
+                        y: 0,
+                        width: state.sourceImage?.width || 800,
+                        height: state.sourceImage?.height || 600,
+                      },
+                    },
+                    position: { x: 0, y: 0 },
+                    scaleX: 1.0,
+                    scaleY: 1.0,
+                  },
+                }));
+              }}
+              quantizedImageData={classification.quantizedImageData}
+              rawQuantizedImageData={classification.rawQuantizedImageData}
+              layers={state.layers}
+              selectedLayerId={state.selectedLayerId}
+              onSelectLayer={id => updateState(prev => ({ ...prev, selectedLayerId: id }))}
+              vectorResults={vectorResults}
+              underlapOverlays={underlapOverlays}
+              canvas={state.canvas}
+              preferences={preferences}
+              activeTool={state.activeTool}
+              onToolChange={tool => updateState(prev => ({ ...prev, activeTool: tool }))}
+              bridgeWidthMm={state.bridgeWidthMm}
+              registrationMarks={state.output.registrationMarks}
+              onApplyWandEdit={handleApplyWandEdit}
+              onApplyBridgeStroke={handleApplyBridgeStroke}
+            />
+          </ErrorBoundary>
         </main>
 
         {/* Right Sidebar: All Tools Unified (+20% Wider: w-88 / 350px) */}
@@ -846,30 +880,7 @@ export const App: React.FC = () => {
           >
             <ChromaControlsPanel
               settings={state.processing}
-              onChange={updater => {
-                const nextSettings = updater(state.processing);
-                if (nextSettings.colorCount !== state.processing.colorCount && state.sourceImage?.imageData) {
-                  const newPalette = extractDominantPalette(state.sourceImage.imageData, nextSettings.colorCount);
-                  const newLayers: ChromaLayerState[] = newPalette.map((swatch, idx) => ({
-                    id: `layer-${idx + 1}`,
-                    order: idx,
-                    swatch,
-                    isSolidBacking: idx === 0,
-                    underlapBleedMm: nextSettings.underlapBleedMm,
-                    manualEdits: { bridges: [], fills: [] },
-                  }));
-
-                  updateState(prev => ({
-                    ...prev,
-                    processing: nextSettings,
-                    palette: newPalette,
-                    layers: newLayers,
-                    selectedLayerId: newLayers[0]?.id || null,
-                  }));
-                } else {
-                  updateState(prev => ({ ...prev, processing: nextSettings }));
-                }
-              }}
+              onChange={updater => updateState(prev => ({ ...prev, processing: updater(prev.processing) }))}
               onReExtractPalette={handleReExtractPalette}
             />
           </CollapsibleSection>
@@ -885,10 +896,18 @@ export const App: React.FC = () => {
               selectedLayerId={state.selectedLayerId}
               onSelectLayer={id => updateState(prev => ({ ...prev, selectedLayerId: id }))}
               onUpdateLayer={(id, updater) =>
-                updateState(prev => ({
-                  ...prev,
-                  layers: prev.layers.map(l => (l.id === id ? updater(l) : l)),
-                }))
+                updateState(prev => {
+                  const updatedLayers = prev.layers.map(l => (l.id === id ? updater(l) : l));
+                  const updatedPalette = prev.palette.map(p => {
+                    const matchedLayer = updatedLayers.find(l => l.swatch.id === p.id);
+                    return matchedLayer ? matchedLayer.swatch : p;
+                  });
+                  return {
+                    ...prev,
+                    layers: updatedLayers,
+                    palette: updatedPalette,
+                  };
+                })
               }
               onReorderLayers={newLayers => updateState(prev => ({ ...prev, layers: newLayers }))}
               vectorResults={vectorResults}
@@ -918,6 +937,23 @@ export const App: React.FC = () => {
             processing={state.processing}
             onUpdateState={updateState}
           />
+
+          {/* App Footer */}
+          <footer className="p-4 -mx-3.5 -mb-3.5 mt-auto border-t border-sand-800/70 text-center text-xs text-sand-400/90 leading-relaxed bg-moss-950/30">
+            <div>© 2026 M. Springer</div>
+            <div>
+              a{' '}
+              <a
+                href="https://poemware.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-emerald-400 hover:text-emerald-300 font-medium underline underline-offset-2 transition"
+              >
+                Poemware
+              </a>{' '}
+              Application
+            </div>
+          </footer>
         </aside>
       </div>
 

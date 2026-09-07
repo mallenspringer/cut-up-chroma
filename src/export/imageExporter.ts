@@ -48,8 +48,12 @@ export async function exportDigitalMockup(
       ? `filter="drop-shadow(0px ${Math.max(2, Math.round(multiplier * 2))}px ${Math.max(4, Math.round(multiplier * 4))}px rgba(0,0,0,0.30))"`
       : '';
 
+    const textureOverlay = options.includePaperTexture
+      ? `\n    <path d="${pathData}" fill="#808080" fill-rule="evenodd" filter="url(#mockup-paper-grain)" style="mix-blend-mode: overlay; opacity: 0.22;" />`
+      : '';
+
     return `  <g id="layer-${layer.id}" ${shadowFilter}>
-    <path d="${pathData}" fill="${layer.swatch.hex}" fill-rule="evenodd" stroke="rgba(0,0,0,0.15)" stroke-width="0.5" />
+    <path d="${pathData}" fill="${layer.swatch.hex}" fill-rule="evenodd" stroke="rgba(0,0,0,0.15)" stroke-width="0.5" />${textureOverlay}
   </g>`;
   }).filter(Boolean).join('\n');
 
@@ -57,9 +61,24 @@ export async function exportDigitalMockup(
     ? `<rect width="${viewW}" height="${viewH}" fill="#fdfbf7" />`
     : '';
 
+  const textureDefs = options.includePaperTexture
+    ? `  <defs>
+    <filter id="mockup-paper-grain" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" result="noise" />
+      <feColorMatrix
+        type="matrix"
+        values="0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0 0 0 1 0"
+        in="noise"
+        result="grayNoise"
+      />
+      <feComposite in="grayNoise" in2="SourceAlpha" operator="in" />
+    </filter>
+  </defs>\n`
+    : '';
+
   const svgContent = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${exportW}" height="${exportH}" viewBox="0 0 ${viewW} ${viewH}">
-  ${bgRect}
+${textureDefs}  ${bgRect}
   ${layerSvgs}
 </svg>`;
 
